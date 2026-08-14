@@ -17,17 +17,29 @@ const {
   ChannelType,
   PermissionFlagsBits,
 } = require("discord.js");
+
 const { detect } = require("./src/services");
 const { runBypass } = require("./src/backend");
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const PREFIX = process.env.PREFIX || "a!";
 const BOT_NAME = process.env.BOT_NAME || "Bypass Tools";
-const SUPPORT_SERVER_URL = process.env.SUPPORT_SERVER_URL || "https://discord.gg/qXUENfzHVH";
-const INVITE_BOT_URL = process.env.INVITE_BOT_URL || "https://discord.com/oauth2/authorize?client_id=1537831595787030598&permissions=8&integration_type=0&scope=bot%20applications.commands";
+
+const SUPPORT_SERVER_URL =
+  process.env.SUPPORT_SERVER_URL ||
+  "https://discord.gg/qXUENfzHVH";
+
+const INVITE_BOT_URL =
+  process.env.INVITE_BOT_URL ||
+  "https://discord.com/oauth2/authorize?client_id=1537831595787030598&permissions=8&integration_type=0&scope=bot%20applications.commands";
+
 const CHECK_EMOJI = "<:Check:1537866209301762158>";
 const LOADING_EMOJI = "<a:Loading:1537866256022118421>";
-const AUTO_BYPASS_FILE = path.join(__dirname, "autobypass.json");
+
+const AUTO_BYPASS_FILE = path.join(
+  __dirname,
+  "autobypass.json"
+);
 
 if (!TOKEN) {
   console.error("Missing DISCORD_TOKEN");
@@ -44,6 +56,7 @@ const client = new Client({
 
 const results = new Map();
 const autoSelections = new Map();
+
 let autoBypassChannels = {};
 
 try {
@@ -232,7 +245,7 @@ async function processBypass({
         ),
       ],
     });
-    return false;
+    return null;
   }
 
   if (!detected.service) {
@@ -243,10 +256,11 @@ async function processBypass({
         ),
       ],
     });
-    return false;
+    return null;
   }
 
-  const started = Date.now();
+  const started =
+    Date.now();
 
   try {
     const outcome =
@@ -269,7 +283,7 @@ async function processBypass({
           ),
         ],
       });
-      return false;
+      return null;
     }
 
     const result =
@@ -306,7 +320,10 @@ async function processBypass({
       ],
     });
 
-    return true;
+    return {
+      result,
+      seconds,
+    };
   } catch (error) {
     await reply.edit({
       components: [
@@ -317,7 +334,7 @@ async function processBypass({
       ],
     });
 
-    return false;
+    return null;
   }
 }
 
@@ -336,6 +353,7 @@ async function startBypass(
           )
       )
     );
+
     return;
   }
 
@@ -402,7 +420,7 @@ async function registerSlashCommands() {
     new SlashCommandBuilder()
       .setName("auto-bypass")
       .setDescription(
-        "Configure automatic bypass for a channel"
+        "Configure automatic bypass"
       )
       .setDefaultMemberPermissions(
         PermissionFlagsBits.ManageGuild
@@ -412,7 +430,7 @@ async function registerSlashCommands() {
           subcommand
             .setName("set")
             .setDescription(
-              "Set the automatic bypass channel"
+              "Set automatic bypass channel"
             )
             .addChannelOption(
               option =>
@@ -421,7 +439,7 @@ async function registerSlashCommands() {
                     "channel"
                   )
                   .setDescription(
-                    "Channel where URLs will be automatically bypassed"
+                    "Automatic bypass channel"
                   )
                   .addChannelTypes(
                     ChannelType.GuildText
@@ -438,12 +456,30 @@ async function registerSlashCommands() {
             )
       );
 
-  await client.application.commands.set(
-    [
-      bypassCommand,
-      autoBypassCommand,
-    ]
-  );
+  const sayCommand =
+    new SlashCommandBuilder()
+      .setName("say")
+      .setDescription(
+        "Send a message as the bot"
+      )
+      .setDefaultMemberPermissions(
+        PermissionFlagsBits.ManageGuild
+      )
+      .addStringOption(
+        option =>
+          option
+            .setName("message")
+            .setDescription(
+              "Message to send"
+            )
+            .setRequired(true)
+      );
+
+  await client.application.commands.set([
+    bypassCommand,
+    autoBypassCommand,
+    sayCommand,
+  ]);
 }
 
 client.once(
@@ -491,19 +527,18 @@ client.on(
           message.content
         )
       ) {
-        try {
-          await message.delete();
-        } catch {}
-
+        await message
+          .delete()
+          .catch(() => {});
         return;
       }
 
       const url =
         message.content.trim();
 
-      try {
-        await message.delete();
-      } catch {}
+      await message
+        .delete()
+        .catch(() => {});
 
       const loading =
         await message.channel.send(
@@ -519,9 +554,7 @@ client.on(
       ) {
         await loading
           .delete()
-          .catch(
-            () => {}
-          );
+          .catch(() => {});
         return;
       }
 
@@ -543,9 +576,7 @@ client.on(
 
         await loading
           .delete()
-          .catch(
-            () => {}
-          );
+          .catch(() => {});
 
         if (
           !outcome.success
@@ -556,9 +587,7 @@ client.on(
                 outcome.result
               )}`
             )
-            .catch(
-              () => {}
-            );
+            .catch(() => {});
 
           return;
         }
@@ -589,7 +618,7 @@ client.on(
           new ContainerBuilder()
             .addTextDisplayComponents(
               text(
-                "## Bypass Complete"
+                "## Bypass Success"
               )
             )
             .addSeparatorComponents(
@@ -627,39 +656,30 @@ client.on(
             );
 
         const choiceMessage =
-          await message.channel.send(
-            {
-              components: [
-                choice,
-              ],
-              flags:
-                MessageFlags.IsComponentsV2,
-            }
-          );
+          await message.channel.send({
+            components: [
+              choice,
+            ],
+            flags:
+              MessageFlags.IsComponentsV2,
+          });
 
-        setTimeout(() => {
-          if (
-            autoSelections.has(
-              selectionId
-            )
-          ) {
+        setTimeout(
+          () => {
             autoSelections.delete(
               selectionId
             );
 
             choiceMessage
               .delete()
-              .catch(
-                () => {}
-              );
-          }
-        }, 15000);
+              .catch(() => {});
+          },
+          15000
+        );
       } catch (error) {
         await loading
           .delete()
-          .catch(
-            () => {}
-          );
+          .catch(() => {});
 
         await message.author
           .send(
@@ -668,9 +688,7 @@ client.on(
               "Unknown error."
             }`
           )
-          .catch(
-            () => {}
-          );
+          .catch(() => {});
       }
 
       return;
@@ -728,15 +746,13 @@ client.on(
           );
 
         const reply =
-          await interaction.reply(
-            {
-              ...v2Options(
-                loadingComponents()
-              ),
-              withResponse:
-                true,
-            }
-          );
+          await interaction.reply({
+            ...v2Options(
+              loadingComponents()
+            ),
+            withResponse:
+              true,
+          });
 
         const message =
           reply.resource
@@ -762,14 +778,12 @@ client.on(
             PermissionFlagsBits.ManageGuild
           )
         ) {
-          await interaction.reply(
-            {
-              content:
-                "You need Manage Server permission to configure Auto Bypass.",
-              ephemeral:
-                true,
-            }
-          );
+          await interaction.reply({
+            content:
+              "You need Manage Server permission to use this command.",
+            ephemeral: true,
+          });
+
           return;
         }
 
@@ -791,14 +805,11 @@ client.on(
 
           saveAutoBypass();
 
-          await interaction.reply(
-            {
-              content:
-                `Auto Bypass is now enabled in ${channel}. Send a URL there and it will be bypassed automatically. Non-URL messages will be removed.`,
-              ephemeral:
-                true,
-            }
-          );
+          await interaction.reply({
+            content:
+              `Auto Bypass enabled in ${channel}.`,
+            ephemeral: true,
+          });
 
           return;
         }
@@ -812,17 +823,56 @@ client.on(
 
           saveAutoBypass();
 
-          await interaction.reply(
-            {
-              content:
-                "Auto Bypass has been disabled for this server.",
-              ephemeral:
-                true,
-            }
-          );
+          await interaction.reply({
+            content:
+              "Auto Bypass disabled.",
+            ephemeral: true,
+          });
 
           return;
         }
+      }
+
+      if (
+        interaction.commandName ===
+        "say"
+      ) {
+        if (
+          !interaction.memberPermissions?.has(
+            PermissionFlagsBits.ManageGuild
+          )
+        ) {
+          await interaction.reply({
+            content:
+              "You need Manage Server permission to use this command.",
+            ephemeral: true,
+          });
+
+          return;
+        }
+
+        const content =
+          interaction.options.getString(
+            "message",
+            true
+          );
+
+        await interaction.channel.send(
+          {
+            content,
+            allowedMentions: {
+              parse: [],
+            },
+          }
+        );
+
+        await interaction.reply({
+          content:
+            "Message sent.",
+          ephemeral: true,
+        });
+
+        return;
       }
 
       return;
@@ -850,26 +900,20 @@ client.on(
       const id =
         interaction.customId.slice(
           isHere
-            ? "auto_here:"
-                .length
-            : "auto_dm:"
-                .length
+            ? "auto_here:".length
+            : "auto_dm:".length
         );
 
       const data =
-        autoSelections.get(
-          id
-        );
+        autoSelections.get(id);
 
       if (!data) {
-        await interaction.reply(
-          {
-            content:
-              "This result choice is no longer available.",
-            ephemeral:
-              true,
-          }
-        );
+        await interaction.reply({
+          content:
+            "This result is no longer available.",
+          ephemeral: true,
+        });
+
         return;
       }
 
@@ -877,40 +921,19 @@ client.on(
         interaction.user.id !==
         data.userId
       ) {
-        await interaction.reply(
-          {
-            content:
-              "Only the user who sent the URL can choose where to receive the result.",
-            ephemeral:
-              true,
-          }
-        );
+        await interaction.reply({
+          content:
+            "Only the user who sent the URL can choose where to receive the result.",
+          ephemeral: true,
+        });
+
         return;
       }
 
-      autoSelections.delete(
-        id
-      );
-
-      await interaction.update(
-        {
-          components: [
-            new ContainerBuilder()
-              .addTextDisplayComponents(
-                text(
-                  isHere
-                    ? "## Sending result here..."
-                    : "## Sending result to DM..."
-                )
-              ),
-          ],
-          flags:
-            MessageFlags.IsComponentsV2,
-        }
-      );
+      autoSelections.delete(id);
 
       if (!isHere) {
-        const dm =
+        const dmSent =
           await interaction.user
             .send({
               content:
@@ -926,36 +949,34 @@ client.on(
               () => null
             );
 
-        await interaction.editReply(
-          {
-            components: [
-              new ContainerBuilder()
-                .addTextDisplayComponents(
-                  text(
-                    dm
-                      ? "## Sent to your DM."
-                      : "## I couldn't send you a DM. Please enable DMs from server members."
-                  )
-                ),
-            ],
-            flags:
-              MessageFlags.IsComponentsV2,
-          }
-        );
+        await interaction.update({
+          components: [
+            new ContainerBuilder()
+              .addTextDisplayComponents(
+                text(
+                  dmSent
+                    ? "## Sent to your DM."
+                    : "## I couldn't send you a DM. Please enable DMs from server members."
+                )
+              ),
+          ],
+          flags:
+            MessageFlags.IsComponentsV2,
+        });
 
         setTimeout(
           () => {
             interaction
               .deleteReply()
-              .catch(
-                () => {}
-              );
+              .catch(() => {});
           },
-          15000
+          1500
         );
 
         return;
       }
+
+      await interaction.deferUpdate();
 
       const resultMessage =
         await interaction.channel
@@ -967,45 +988,24 @@ client.on(
                 0,
                 1900
               )}\n\`\`\`\n\n` +
-              `Processed in ${data.seconds}s\n<@${data.userId}>`,
+              `Processed in ${data.seconds}s`,
           })
           .catch(
             () => null
           );
 
-      await interaction.editReply(
-        {
-          components: [
-            new ContainerBuilder()
-              .addTextDisplayComponents(
-                text(
-                  resultMessage
-                    ? "## Result sent here. It will be deleted in 15 seconds."
-                    : "## Failed to send the result."
-                )
-              ),
-          ],
-          flags:
-            MessageFlags.IsComponentsV2,
-        }
-      );
+      await interaction
+        .deleteReply()
+        .catch(() => {});
 
       if (resultMessage) {
         setTimeout(
           () => {
             resultMessage
               .delete()
-              .catch(
-                () => {}
-              );
-
-            interaction
-              .deleteReply()
-              .catch(
-                () => {}
-              );
+              .catch(() => {});
           },
-          15000
+          10000
         );
       }
 
@@ -1030,14 +1030,12 @@ client.on(
       results.get(id);
 
     if (!data) {
-      await interaction.reply(
-        {
-          content:
-            "This result is no longer available.",
-          ephemeral:
-            true,
-        }
-      );
+      await interaction.reply({
+        content:
+          "This result is no longer available.",
+        ephemeral: true,
+      });
+
       return;
     }
 
@@ -1045,28 +1043,23 @@ client.on(
       interaction.user.id !==
       data.userId
     ) {
-      await interaction.reply(
-        {
-          content:
-            "Only the user who requested this bypass can view the result.",
-          ephemeral:
-            true,
-        }
-      );
+      await interaction.reply({
+        content:
+          "Only the user who requested this bypass can view the result.",
+        ephemeral: true,
+      });
+
       return;
     }
 
-    await interaction.reply(
-      {
-        content:
-          data.result.slice(
-            0,
-            2000
-          ),
-        ephemeral:
-          true,
-      }
-    );
+    await interaction.reply({
+      content:
+        data.result.slice(
+          0,
+          2000
+        ),
+      ephemeral: true,
+    });
   }
 );
 
