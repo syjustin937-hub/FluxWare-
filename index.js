@@ -17,22 +17,14 @@ const {
   ChannelType,
   PermissionFlagsBits,
 } = require("discord.js");
-
 const { detect } = require("./src/services");
 const { runBypass } = require("./src/backend");
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const PREFIX = process.env.PREFIX || "a!";
 const BOT_NAME = process.env.BOT_NAME || "Bypass Tools";
-
-const SUPPORT_SERVER_URL =
-  process.env.SUPPORT_SERVER_URL ||
-  "https://discord.gg/qXUENfzHVH";
-
-const INVITE_BOT_URL =
-  process.env.INVITE_BOT_URL ||
-  "https://discord.com/oauth2/authorize?client_id=1537831595787030598&permissions=8&integration_type=0&scope=bot%20applications.commands";
-
+const SUPPORT_SERVER_URL = process.env.SUPPORT_SERVER_URL || "https://discord.gg/qXUENfzHVH";
+const INVITE_BOT_URL = process.env.INVITE_BOT_URL || "https://discord.com/oauth2/authorize?client_id=1537831595787030598&permissions=8&integration_type=0&scope=bot%20applications.commands";
 const CHECK_EMOJI = "<:Check:1537866209301762158>";
 const LOADING_EMOJI = "<a:Loading:1537866256022118421>";
 const AUTO_BYPASS_FILE = path.join(__dirname, "autobypass.json");
@@ -51,13 +43,17 @@ const client = new Client({
 });
 
 const results = new Map();
+const autoSelections = new Map();
 let autoBypassChannels = {};
 
 try {
   if (fs.existsSync(AUTO_BYPASS_FILE)) {
     autoBypassChannels =
       JSON.parse(
-        fs.readFileSync(AUTO_BYPASS_FILE, "utf8")
+        fs.readFileSync(
+          AUTO_BYPASS_FILE,
+          "utf8"
+        )
       ) || {};
   }
 } catch {
@@ -67,7 +63,11 @@ try {
 function saveAutoBypass() {
   fs.writeFileSync(
     AUTO_BYPASS_FILE,
-    JSON.stringify(autoBypassChannels, null, 2)
+    JSON.stringify(
+      autoBypassChannels,
+      null,
+      2
+    )
   );
 }
 
@@ -79,7 +79,8 @@ function cleanResult(value) {
 }
 
 function text(content) {
-  return new TextDisplayBuilder().setContent(content);
+  return new TextDisplayBuilder()
+    .setContent(content);
 }
 
 function separator() {
@@ -99,10 +100,17 @@ function makeButtons(id) {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`view_result:${id}`)
+        .setCustomId(
+          `view_result:${id}`
+        )
         .setLabel("View Result")
-        .setStyle(ButtonStyle.Secondary),
-      linkButton("Invite Bot", INVITE_BOT_URL)
+        .setStyle(
+          ButtonStyle.Secondary
+        ),
+      linkButton(
+        "Invite Bot",
+        INVITE_BOT_URL
+      )
     ),
     new ActionRowBuilder().addComponents(
       linkButton(
@@ -123,14 +131,18 @@ function buildSuccess(
   user,
   id
 ) {
-  const value = cleanResult(result);
+  const value =
+    cleanResult(result);
 
   const mobile = value
     .replace(/`/g, "\\`")
     .slice(0, 1000);
 
   const pc = value
-    .replace(/```/g, "\\`\\`\\`")
+    .replace(
+      /```/g,
+      "\\`\\`\\`"
+    )
     .slice(0, 3900);
 
   return baseContainer()
@@ -175,17 +187,19 @@ function errorComponents(result) {
     )
     .addTextDisplayComponents(
       text(
-        cleanResult(result).slice(0, 3900)
+        cleanResult(result)
+          .slice(0, 3900)
       )
     );
 }
 
 function loadingComponents() {
-  return baseContainer().addTextDisplayComponents(
-    text(
-      `${LOADING_EMOJI} **Bypassing...**`
-    )
-  );
+  return baseContainer()
+    .addTextDisplayComponents(
+      text(
+        `${LOADING_EMOJI} **Bypassing...**`
+      )
+    );
 }
 
 function v2Options(
@@ -207,15 +221,18 @@ async function processBypass({
   user,
   reply,
 }) {
-  const detected = detect(url);
+  const detected =
+    detect(url);
 
   if (!detected.url) {
     await reply.edit({
       components: [
-        errorComponents("Invalid URL."),
+        errorComponents(
+          "Invalid URL."
+        ),
       ],
     });
-    return null;
+    return false;
   }
 
   if (!detected.service) {
@@ -226,19 +243,21 @@ async function processBypass({
         ),
       ],
     });
-    return null;
+    return false;
   }
 
   const started = Date.now();
 
   try {
-    const outcome = await runBypass(
-      detected.service,
-      detected.url.href
-    );
+    const outcome =
+      await runBypass(
+        detected.service,
+        detected.url.href
+      );
 
     const seconds = (
-      (Date.now() - started) /
+      (Date.now() -
+        started) /
       1000
     ).toFixed(3);
 
@@ -250,12 +269,13 @@ async function processBypass({
           ),
         ],
       });
-      return null;
+      return false;
     }
 
-    const result = cleanResult(
-      outcome.result
-    );
+    const result =
+      cleanResult(
+        outcome.result
+      );
 
     const id =
       `${user.id}:${Date.now()}:${Math.random()
@@ -269,7 +289,9 @@ async function processBypass({
 
     if (results.size > 1000) {
       results.delete(
-        results.keys().next().value
+        results.keys()
+          .next()
+          .value
       );
     }
 
@@ -284,10 +306,7 @@ async function processBypass({
       ],
     });
 
-    return {
-      result,
-      seconds,
-    };
+    return true;
   } catch (error) {
     await reply.edit({
       components: [
@@ -298,7 +317,7 @@ async function processBypass({
       ],
     });
 
-    return null;
+    return false;
   }
 }
 
@@ -309,21 +328,23 @@ async function startBypass(
   if (!url) {
     await message.reply(
       v2Options(
-        baseContainer().addTextDisplayComponents(
-          text(
-            `## Usage\n\`${PREFIX}bypass <url>\``
+        baseContainer()
+          .addTextDisplayComponents(
+            text(
+              `## Usage\n\`${PREFIX}bypass <url>\``
+            )
           )
-        )
       )
     );
     return;
   }
 
-  const reply = await message.reply(
-    v2Options(
-      loadingComponents()
-    )
-  );
+  const reply =
+    await message.reply(
+      v2Options(
+        loadingComponents()
+      )
+    );
 
   await processBypass({
     url,
@@ -333,20 +354,27 @@ async function startBypass(
 }
 
 function isUrlOnly(content) {
-  const value = String(
-    content || ""
-  ).trim();
+  const value =
+    String(
+      content || ""
+    ).trim();
 
-  if (!value || /\s/.test(value)) {
+  if (
+    !value ||
+    /\s/.test(value)
+  ) {
     return false;
   }
 
   try {
-    const url = new URL(value);
+    const url =
+      new URL(value);
 
     return (
-      url.protocol === "http:" ||
-      url.protocol === "https:"
+      url.protocol ===
+        "http:" ||
+      url.protocol ===
+        "https:"
     );
   } catch {
     return false;
@@ -357,14 +385,17 @@ async function registerSlashCommands() {
   const bypassCommand =
     new SlashCommandBuilder()
       .setName("bypass")
-      .setDescription("Bypass a URL")
-      .addStringOption(option =>
-        option
-          .setName("url")
-          .setDescription(
-            "URL to bypass"
-          )
-          .setRequired(true)
+      .setDescription(
+        "Bypass a URL"
+      )
+      .addStringOption(
+        option =>
+          option
+            .setName("url")
+            .setDescription(
+              "URL to bypass"
+            )
+            .setRequired(true)
       );
 
   const autoBypassCommand =
@@ -376,42 +407,43 @@ async function registerSlashCommands() {
       .setDefaultMemberPermissions(
         PermissionFlagsBits.ManageGuild
       )
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName("set")
-          .setDescription(
-            "Set the automatic bypass channel"
-          )
-          .addChannelOption(option =>
-            option
-              .setName("channel")
-              .setDescription(
-                "Channel where URLs will be automatically bypassed"
-              )
-              .addChannelTypes(
-                ChannelType.GuildText
-              )
-              .setRequired(true)
-          )
+      .addSubcommand(
+        subcommand =>
+          subcommand
+            .setName("set")
+            .setDescription(
+              "Set the automatic bypass channel"
+            )
+            .addChannelOption(
+              option =>
+                option
+                  .setName(
+                    "channel"
+                  )
+                  .setDescription(
+                    "Channel where URLs will be automatically bypassed"
+                  )
+                  .addChannelTypes(
+                    ChannelType.GuildText
+                  )
+                  .setRequired(true)
+            )
       )
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName("off")
-          .setDescription(
-            "Disable automatic bypass"
-          )
+      .addSubcommand(
+        subcommand =>
+          subcommand
+            .setName("off")
+            .setDescription(
+              "Disable automatic bypass"
+            )
       );
 
-  for (const guild of client.guilds.cache.values()) {
-    try {
-      await guild.commands.set([]);
-    } catch {}
-  }
-
-  await client.application.commands.set([
-    bypassCommand,
-    autoBypassCommand,
-  ]);
+  await client.application.commands.set(
+    [
+      bypassCommand,
+      autoBypassCommand,
+    ]
+  );
 }
 
 client.once(
@@ -478,19 +510,23 @@ client.on(
           `${LOADING_EMOJI} **Bypassing...**`
         );
 
-      const detected = detect(url);
+      const detected =
+        detect(url);
 
       if (
         !detected.url ||
         !detected.service
       ) {
-        await loading.delete().catch(
-          () => {}
-        );
+        await loading
+          .delete()
+          .catch(
+            () => {}
+          );
         return;
       }
 
-      const started = Date.now();
+      const started =
+        Date.now();
 
       try {
         const outcome =
@@ -500,22 +536,29 @@ client.on(
           );
 
         const seconds = (
-          (Date.now() - started) /
+          (Date.now() -
+            started) /
           1000
         ).toFixed(3);
 
-        await loading.delete().catch(
-          () => {}
-        );
+        await loading
+          .delete()
+          .catch(
+            () => {}
+          );
 
-        if (!outcome.success) {
+        if (
+          !outcome.success
+        ) {
           await message.author
             .send(
               `Bypass failed: ${cleanResult(
                 outcome.result
               )}`
             )
-            .catch(() => {});
+            .catch(
+              () => {}
+            );
 
           return;
         }
@@ -525,22 +568,98 @@ client.on(
             outcome.result
           );
 
-        await message.author
-          .send({
-            content:
-              `## Bypass Success ${CHECK_EMOJI}\n\n` +
-              `**Result:**\n` +
-              `\`\`\`\n${result.slice(
-                0,
-                1900
-              )}\n\`\`\`\n\n` +
-              `Processed in ${seconds}s`,
-          })
-          .catch(() => {});
-      } catch (error) {
-        await loading.delete().catch(
-          () => {}
+        const selectionId =
+          `${message.author.id}:${Date.now()}:${Math.random()
+            .toString(36)
+            .slice(2, 8)}`;
+
+        autoSelections.set(
+          selectionId,
+          {
+            userId:
+              message.author.id,
+            channelId:
+              message.channel.id,
+            result,
+            seconds,
+          }
         );
+
+        const choice =
+          new ContainerBuilder()
+            .addTextDisplayComponents(
+              text(
+                "## Bypass Complete"
+              )
+            )
+            .addSeparatorComponents(
+              separator()
+            )
+            .addTextDisplayComponents(
+              text(
+                "Where do you want to receive the result?"
+              )
+            )
+            .addActionRowComponents(
+              new ActionRowBuilder()
+                .addComponents(
+                  new ButtonBuilder()
+                    .setCustomId(
+                      `auto_here:${selectionId}`
+                    )
+                    .setLabel(
+                      "Send Here"
+                    )
+                    .setStyle(
+                      ButtonStyle.Secondary
+                    ),
+                  new ButtonBuilder()
+                    .setCustomId(
+                      `auto_dm:${selectionId}`
+                    )
+                    .setLabel(
+                      "Send to DM"
+                    )
+                    .setStyle(
+                      ButtonStyle.Primary
+                    )
+                )
+            );
+
+        const choiceMessage =
+          await message.channel.send(
+            {
+              components: [
+                choice,
+              ],
+              flags:
+                MessageFlags.IsComponentsV2,
+            }
+          );
+
+        setTimeout(() => {
+          if (
+            autoSelections.has(
+              selectionId
+            )
+          ) {
+            autoSelections.delete(
+              selectionId
+            );
+
+            choiceMessage
+              .delete()
+              .catch(
+                () => {}
+              );
+          }
+        }, 15000);
+      } catch (error) {
+        await loading
+          .delete()
+          .catch(
+            () => {}
+          );
 
         await message.author
           .send(
@@ -549,7 +668,9 @@ client.on(
               "Unknown error."
             }`
           )
-          .catch(() => {});
+          .catch(
+            () => {}
+          );
       }
 
       return;
@@ -565,16 +686,21 @@ client.on(
 
     const args =
       message.content
-        .slice(PREFIX.length)
+        .slice(
+          PREFIX.length
+        )
         .trim()
         .split(/\s+/);
 
     const command =
       (
-        args.shift() || ""
+        args.shift() ||
+        ""
       ).toLowerCase();
 
-    if (command !== "bypass") {
+    if (
+      command !== "bypass"
+    ) {
       return;
     }
 
@@ -602,20 +728,25 @@ client.on(
           );
 
         const reply =
-          await interaction.reply({
-            ...v2Options(
-              loadingComponents()
-            ),
-            withResponse: true,
-          });
+          await interaction.reply(
+            {
+              ...v2Options(
+                loadingComponents()
+              ),
+              withResponse:
+                true,
+            }
+          );
 
         const message =
-          reply.resource?.message ||
+          reply.resource
+            ?.message ||
           await interaction.fetchReply();
 
         await processBypass({
           url,
-          user: interaction.user,
+          user:
+            interaction.user,
           reply: message,
         });
 
@@ -631,12 +762,14 @@ client.on(
             PermissionFlagsBits.ManageGuild
           )
         ) {
-          await interaction.reply({
-            content:
-              "You need Manage Server permission to configure Auto Bypass.",
-            ephemeral: true,
-          });
-
+          await interaction.reply(
+            {
+              content:
+                "You need Manage Server permission to configure Auto Bypass.",
+              ephemeral:
+                true,
+            }
+          );
           return;
         }
 
@@ -658,11 +791,14 @@ client.on(
 
           saveAutoBypass();
 
-          await interaction.reply({
-            content:
-              `Auto Bypass is now enabled in ${channel}.`,
-            ephemeral: true,
-          });
+          await interaction.reply(
+            {
+              content:
+                `Auto Bypass is now enabled in ${channel}. Send a URL there and it will be bypassed automatically. Non-URL messages will be removed.`,
+              ephemeral:
+                true,
+            }
+          );
 
           return;
         }
@@ -676,11 +812,14 @@ client.on(
 
           saveAutoBypass();
 
-          await interaction.reply({
-            content:
-              "Auto Bypass has been disabled for this server.",
-            ephemeral: true,
-          });
+          await interaction.reply(
+            {
+              content:
+                "Auto Bypass has been disabled for this server.",
+              ephemeral:
+                true,
+            }
+          );
 
           return;
         }
@@ -696,6 +835,184 @@ client.on(
     }
 
     if (
+      interaction.customId.startsWith(
+        "auto_here:"
+      ) ||
+      interaction.customId.startsWith(
+        "auto_dm:"
+      )
+    ) {
+      const isHere =
+        interaction.customId.startsWith(
+          "auto_here:"
+        );
+
+      const id =
+        interaction.customId.slice(
+          isHere
+            ? "auto_here:"
+                .length
+            : "auto_dm:"
+                .length
+        );
+
+      const data =
+        autoSelections.get(
+          id
+        );
+
+      if (!data) {
+        await interaction.reply(
+          {
+            content:
+              "This result choice is no longer available.",
+            ephemeral:
+              true,
+          }
+        );
+        return;
+      }
+
+      if (
+        interaction.user.id !==
+        data.userId
+      ) {
+        await interaction.reply(
+          {
+            content:
+              "Only the user who sent the URL can choose where to receive the result.",
+            ephemeral:
+              true,
+          }
+        );
+        return;
+      }
+
+      autoSelections.delete(
+        id
+      );
+
+      await interaction.update(
+        {
+          components: [
+            new ContainerBuilder()
+              .addTextDisplayComponents(
+                text(
+                  isHere
+                    ? "## Sending result here..."
+                    : "## Sending result to DM..."
+                )
+              ),
+          ],
+          flags:
+            MessageFlags.IsComponentsV2,
+        }
+      );
+
+      if (!isHere) {
+        const dm =
+          await interaction.user
+            .send({
+              content:
+                `## Bypass Success ${CHECK_EMOJI}\n\n` +
+                `**Result:**\n` +
+                `\`\`\`\n${data.result.slice(
+                  0,
+                  1900
+                )}\n\`\`\`\n\n` +
+                `Processed in ${data.seconds}s`,
+            })
+            .catch(
+              () => null
+            );
+
+        await interaction.editReply(
+          {
+            components: [
+              new ContainerBuilder()
+                .addTextDisplayComponents(
+                  text(
+                    dm
+                      ? "## Sent to your DM."
+                      : "## I couldn't send you a DM. Please enable DMs from server members."
+                  )
+                ),
+            ],
+            flags:
+              MessageFlags.IsComponentsV2,
+          }
+        );
+
+        setTimeout(
+          () => {
+            interaction
+              .deleteReply()
+              .catch(
+                () => {}
+              );
+          },
+          15000
+        );
+
+        return;
+      }
+
+      const resultMessage =
+        await interaction.channel
+          .send({
+            content:
+              `## Bypass Success ${CHECK_EMOJI}\n\n` +
+              `**Result:**\n` +
+              `\`\`\`\n${data.result.slice(
+                0,
+                1900
+              )}\n\`\`\`\n\n` +
+              `Processed in ${data.seconds}s\n<@${data.userId}>`,
+          })
+          .catch(
+            () => null
+          );
+
+      await interaction.editReply(
+        {
+          components: [
+            new ContainerBuilder()
+              .addTextDisplayComponents(
+                text(
+                  resultMessage
+                    ? "## Result sent here. It will be deleted in 15 seconds."
+                    : "## Failed to send the result."
+                )
+              ),
+          ],
+          flags:
+            MessageFlags.IsComponentsV2,
+        }
+      );
+
+      if (resultMessage) {
+        setTimeout(
+          () => {
+            resultMessage
+              .delete()
+              .catch(
+                () => {}
+              );
+
+            interaction
+              .deleteReply()
+              .catch(
+                () => {}
+              );
+          },
+          15000
+        );
+      }
+
+      return;
+    }
+
+    if (
       !interaction.customId.startsWith(
         "view_result:"
       )
@@ -705,19 +1022,22 @@ client.on(
 
     const id =
       interaction.customId.slice(
-        "view_result:".length
+        "view_result:"
+          .length
       );
 
     const data =
       results.get(id);
 
     if (!data) {
-      await interaction.reply({
-        content:
-          "This result is no longer available.",
-        ephemeral: true,
-      });
-
+      await interaction.reply(
+        {
+          content:
+            "This result is no longer available.",
+          ephemeral:
+            true,
+        }
+      );
       return;
     }
 
@@ -725,23 +1045,28 @@ client.on(
       interaction.user.id !==
       data.userId
     ) {
-      await interaction.reply({
-        content:
-          "Only the user who requested this bypass can view the result.",
-        ephemeral: true,
-      });
-
+      await interaction.reply(
+        {
+          content:
+            "Only the user who requested this bypass can view the result.",
+          ephemeral:
+            true,
+        }
+      );
       return;
     }
 
-    await interaction.reply({
-      content:
-        data.result.slice(
-          0,
-          2000
-        ),
-      ephemeral: true,
-    });
+    await interaction.reply(
+      {
+        content:
+          data.result.slice(
+            0,
+            2000
+          ),
+        ephemeral:
+          true,
+      }
+    );
   }
 );
 
