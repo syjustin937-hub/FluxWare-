@@ -674,7 +674,7 @@ client.on(
               .delete()
               .catch(() => {});
           },
-          15000
+          5000
         );
       } catch (error) {
         await loading
@@ -857,14 +857,12 @@ client.on(
             true
           );
 
-        await interaction.channel.send(
-          {
-            content,
-            allowedMentions: {
-              parse: [],
-            },
-          }
-        );
+        await interaction.channel.send({
+          content,
+          allowedMentions: {
+            parse: [],
+          },
+        });
 
         await interaction.reply({
           content:
