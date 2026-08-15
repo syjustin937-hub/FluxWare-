@@ -1,58 +1,16 @@
-
-
-const BASE = (process.env.BYPASS_API_URL || "https://backend-production-fcfb8.up.railway.app")
-  .replace(/\/+$/, "");
-
+const BASE = (process.env.BYPASS_API_URL || "https://backend-production-fcfb8.up.railway.app").replace(/\/+$/, "");
 const TIMEOUT = Number(process.env.BYPASS_API_TIMEOUT || 300000);
-
-
+const WARMUP_TIMEOUT = Number(process.env.BYPASS_API_WARMUP_TIMEOUT || 10000);
 
 const PLATFORMS = [
-  {
-    id: "platoboost",
-    name: "Platoboost / PlatoRelay",
-    example: "https://auth.platorelay.com/?d=TICKET",
-    domains: ["auth.platorelay.com", "platorelay.com", "auth.platoboost.com", "gateway.platoboost.com", "platoboost.com"],
-  },
-  {
-    id: "lootlabs",
-    name: "LootLabs",
-    example: "https://links.lootlabs.gg/XXXXX",
-    domains: ["links.lootlabs.gg", "lootlabs.gg", "lootdest.com", "lootdest.org", "lootdest.info"],
-  },
-  {
-    id: "lootlink",
-    name: "loot.link",
-    example: "https://loot.link/XXXXX",
-    domains: ["loot.link", "loot-link.com", "loot-links.com", "lootlink.org"],
-  },
-  {
-    id: "workink",
-    name: "work.ink",
-    example: "https://work.ink/XXXX/...",
-    domains: ["work.ink", "workink.net"],
-  },
-  {
-    id: "boostink",
-    name: "boost.ink",
-    example: "https://boost.ink/XXXXX",
-    domains: ["boost.ink", "mboost.me", "bst.gg"],
-  },
-  {
-    id: "linkvertise",
-    name: "Linkvertise",
-    example: "https://linkvertise.com/...",
-    domains: ["linkvertise.com", "link-to.net", "link-target.net", "link-center.net", "link-hub.net", "direct-link.net"],
-  },
-  {
-    id: "madium",
-    name: "Madium",
-    example: "https://getmadium.xyz/",
-    domains: ["getmadium.xyz", "auth.getmadium.xyz", "madium.xyz"],
-  },
+  { id: "platoboost", name: "Platoboost / PlatoRelay", example: "https://auth.platorelay.com/?d=TICKET", domains: ["auth.platorelay.com", "platorelay.com", "auth.platoboost.com", "gateway.platoboost.com", "platoboost.com"] },
+  { id: "lootlabs", name: "LootLabs", example: "https://links.lootlabs.gg/XXXXX", domains: ["links.lootlabs.gg", "lootlabs.gg", "lootdest.com", "lootdest.org", "lootdest.info"] },
+  { id: "lootlink", name: "loot.link", example: "https://loot.link/XXXXX", domains: ["loot.link", "loot-link.com", "loot-links.com", "lootlink.org"] },
+  { id: "workink", name: "work.ink", example: "https://work.ink/XXXX/...", domains: ["work.ink", "workink.net"] },
+  { id: "boostink", name: "boost.ink", example: "https://boost.ink/XXXXX", domains: ["boost.ink", "mboost.me", "bst.gg"] },
+  { id: "linkvertise", name: "Linkvertise", example: "https://linkvertise.com/...", domains: ["linkvertise.com", "link-to.net", "link-target.net", "link-center.net", "link-hub.net", "direct-link.net"] },
+  { id: "madium", name: "Madium", example: "https://getmadium.xyz/", domains: ["getmadium.xyz", "auth.getmadium.xyz", "madium.xyz"] },
 ];
-
-
 
 function hostOf(url) {
   try {
@@ -80,14 +38,11 @@ function isSupportedRemotely(url) {
   return !!platformFor(url);
 }
 
-
 const PROVIDERS = [{ id: "private-backend", name: "Private Bypass API", base: BASE }];
 
 function providersFor(url) {
   return isSupportedRemotely(url) ? PROVIDERS : [];
 }
-
-
 
 async function request(path, { method = "GET", body, timeout = TIMEOUT } = {}) {
   const controller = new AbortController();
@@ -98,23 +53,22 @@ async function request(path, { method = "GET", body, timeout = TIMEOUT } = {}) {
       headers: {
         accept: "application/json",
         ...(body ? { "content-type": "application/json" } : {}),
+        "user-agent": "BypassBot/4.1",
       },
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
+      cache: "no-store",
     });
     const text = await res.text();
     let json = null;
     try {
       json = JSON.parse(text);
-    } catch {
-      
-    }
+    } catch {}
     return { ok: res.ok, status: res.status, json, text };
   } finally {
     clearTimeout(timer);
   }
 }
-
 
 function normalise(res) {
   const data = res.json;
@@ -140,9 +94,6 @@ function normalise(res) {
   };
 }
 
-
-
-
 async function bypassWithApis(url, onStep = () => {}) {
   const platform = platformFor(url);
   if (!platform) {
@@ -152,27 +103,48 @@ async function bypassWithApis(url, onStep = () => {}) {
   onStep(`Platform: ${platform.name}`);
   onStep("Sending the link to the backend...");
 
-  const attempts = [
-    () => request(`/api/bypass?url=${encodeURIComponent(url)}`, { method: "GET" }),
-    () => request(`/api/bypass`, { method: "POST", body: { url } }),
-  ];
-
   const errors = [];
-  for (const attempt of attempts) {
-    try {
-      const out = normalise(await attempt());
-      if (out.success) {
-        for (const line of (out.logs || []).slice(-3)) onStep(String(line));
-        return { ...out, provider: "Private Bypass API" };
+
+  try {
+    const first = normalise(await request(`/api/bypass?url=${encodeURIComponent(url)}`, { method: "GET" }));
+    if (first.success) {
+      for (const line of (first.logs || []).slice(-3)) onStep(String(line));
+      return { ...first, provider: "Private Bypass API" };
+    }
+    errors.push(first.result);
+
+    if (first.result && /method|post|not found|405|unsupported/i.test(String(first.result))) {
+      const second = normalise(await request(`/api/bypass`, { method: "POST", body: { url } }));
+      if (second.success) {
+        for (const line of (second.logs || []).slice(-3)) onStep(String(line));
+        return { ...second, provider: "Private Bypass API" };
       }
-      errors.push(out.result);
-    } catch (err) {
-      errors.push(err.name === "AbortError" ? "timeout" : err.message);
+      errors.push(second.result);
+      return { success: false, result: [...new Set(errors)].join("\n"), provider: null };
+    }
+
+    const second = normalise(await request(`/api/bypass`, { method: "POST", body: { url } }));
+    if (second.success) {
+      for (const line of (second.logs || []).slice(-3)) onStep(String(line));
+      return { ...second, provider: "Private Bypass API" };
+    }
+    errors.push(second.result);
+  } catch (err) {
+    errors.push(err.name === "AbortError" ? "timeout" : err.message || "network error");
+    try {
+      const second = normalise(await request(`/api/bypass`, { method: "POST", body: { url } }));
+      if (second.success) {
+        for (const line of (second.logs || []).slice(-3)) onStep(String(line));
+        return { ...second, provider: "Private Bypass API" };
+      }
+      errors.push(second.result);
+    } catch (fallbackError) {
+      errors.push(fallbackError.name === "AbortError" ? "timeout" : fallbackError.message || "network error");
     }
   }
+
   return { success: false, result: [...new Set(errors)].join("\n"), provider: null };
 }
-
 
 async function madiumKey(steps) {
   try {
@@ -181,8 +153,6 @@ async function madiumKey(steps) {
     return { success: false, result: err.name === "AbortError" ? "timeout" : err.message };
   }
 }
-
-
 
 async function apiStatus() {
   try {
@@ -194,34 +164,10 @@ async function apiStatus() {
 }
 
 const HEALTH_CHECKS = [
-  {
-    id: "backend-health",
-    name: "Private Backend (/health)",
-    kind: "api",
-    run: () => request("/health", { method: "GET", timeout: 15000 }),
-  },
-  {
-    id: "backend-api",
-    name: "Private Backend (/api)",
-    kind: "api",
-    run: () => request("/api", { method: "GET", timeout: 15000 }),
-  },
-  {
-    id: "backend-detect",
-    name: "Bypass engine (/api/detect)",
-    kind: "api",
-    run: () =>
-      request(`/api/detect?url=${encodeURIComponent("https://auth.platorelay.com/?d=test")}`, {
-        method: "GET",
-        timeout: 15000,
-      }),
-  },
-  {
-    id: "backend-madium",
-    name: "Madium (/api/madium/config)",
-    kind: "api",
-    run: () => request("/api/madium/config", { method: "GET", timeout: 20000 }),
-  },
+  { id: "backend-health", name: "Private Backend (/health)", kind: "api", run: () => request("/health", { method: "GET", timeout: 15000 }) },
+  { id: "backend-api", name: "Private Backend (/api)", kind: "api", run: () => request("/api", { method: "GET", timeout: 15000 }) },
+  { id: "backend-detect", name: "Bypass engine (/api/detect)", kind: "api", run: () => request(`/api/detect?url=${encodeURIComponent("https://auth.platorelay.com/?d=test")}`, { method: "GET", timeout: 15000 }) },
+  { id: "backend-madium", name: "Madium (/api/madium/config)", kind: "api", run: () => request("/api/madium/config", { method: "GET", timeout: 20000 }) },
 ];
 
 async function probeOne(check) {
@@ -231,30 +177,20 @@ async function probeOne(check) {
     const ms = Date.now() - started;
     const ok = res.status > 0 && res.status < 400;
     const degraded = !ok && [400, 401, 402, 403, 422, 429].includes(res.status);
-    return {
-      id: check.id,
-      name: check.name,
-      kind: check.kind,
-      ok,
-      degraded,
-      ms,
-      detail: `HTTP ${res.status}${degraded ? " (limited)" : ""}`,
-    };
+    return { id: check.id, name: check.name, kind: check.kind, ok, degraded, ms, detail: `HTTP ${res.status}${degraded ? " (limited)" : ""}` };
   } catch (err) {
-    return {
-      id: check.id,
-      name: check.name,
-      kind: check.kind,
-      ok: false,
-      degraded: false,
-      ms: Date.now() - started,
-      detail: err.name === "AbortError" ? "timeout" : err.message || "network error",
-    };
+    return { id: check.id, name: check.name, kind: check.kind, ok: false, degraded: false, ms: Date.now() - started, detail: err.name === "AbortError" ? "timeout" : err.message || "network error" };
   }
 }
 
 async function testApis() {
   return Promise.all(HEALTH_CHECKS.map(probeOne));
+}
+
+async function warmup() {
+  try {
+    await request("/health", { method: "GET", timeout: WARMUP_TIMEOUT });
+  } catch {}
 }
 
 module.exports = {
@@ -273,4 +209,5 @@ module.exports = {
   apiStatus,
   testApis,
   probeOne,
+  warmup,
 };
