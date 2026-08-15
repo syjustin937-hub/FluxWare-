@@ -1,4 +1,3 @@
-
 const apis = require("../apis");
 
 async function runBypass(service, url, onStep = () => {}) {
@@ -9,7 +8,6 @@ async function runBypass(service, url, onStep = () => {}) {
 async function backendStatus() {
   return { apis: await apis.apiStatus() };
 }
-
 
 async function testAll() {
   const started = Date.now();
