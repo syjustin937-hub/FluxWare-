@@ -28,6 +28,7 @@ const INVITE_BOT_URL = process.env.INVITE_BOT_URL || "https://discord.com/oauth2
 const CHECK_EMOJI = "<:Check:1537866209301762158>";
 const LOADING_EMOJI = "<a:Loading:1537866256022118421>";
 const AUTO_BYPASS_FILE = path.join(__dirname, "autobypass.json");
+const AUTO_DELETE_MS = 10000;
 
 if (!TOKEN) {
   console.error("Missing DISCORD_TOKEN");
@@ -55,6 +56,11 @@ try {
 
 function saveAutoBypass() {
   fs.writeFileSync(AUTO_BYPASS_FILE, JSON.stringify(autoBypassChannels, null, 2));
+}
+
+function memberHasRole(member, roleId) {
+  if (!roleId) return true;
+  return member.roles.cache.has(roleId);
 }
 
 function cleanResult(value) {
@@ -111,6 +117,26 @@ function errorComponents(result) {
     .addTextDisplayComponents(text(cleanResult(result).slice(0, 3900)));
 }
 
+function lootResultPrompt(originalUrl) {
+  return baseContainer()
+    .addTextDisplayComponents(text("## Manual Step Required"))
+    .addSeparatorComponents(separator())
+    .addTextDisplayComponents(text(
+      "loot-link requires a checkpoint that can't be automated.\n\n" +
+      "**Steps:**\n" +
+      "1. Open the loot-link URL in your browser\n" +
+      "2. Complete the first step — copy the `ticket2` URL from the address bar\n" +
+      `3. Run: \`${PREFIX}bypass ${originalUrl} lootResult:<paste_ticket2_url_here>\``
+    ));
+}
+
+function noPermissionComponents() {
+  return baseContainer()
+    .addTextDisplayComponents(text("## No Permission"))
+    .addSeparatorComponents(separator())
+    .addTextDisplayComponents(text("You don't have the required role to use this channel."));
+}
+
 function loadingComponents() {
   return baseContainer().addTextDisplayComponents(text(`${LOADING_EMOJI} **Bypassing...**`));
 }
@@ -122,7 +148,15 @@ function v2Options(container, ephemeral = false) {
   };
 }
 
-async function processBypass({ url, user, reply }) {
+function scheduleDelete(message, delayMs = AUTO_DELETE_MS) {
+  setTimeout(async () => {
+    try {
+      await message.delete();
+    } catch {}
+  }, delayMs);
+}
+
+async function processBypass({ url, user, reply, lootResult = null, originalMessage = null, autoChannel = false }) {
   const detected = detect(url);
 
   if (!detected.url) {
@@ -138,10 +172,14 @@ async function processBypass({ url, user, reply }) {
   const started = Date.now();
 
   try {
-    const outcome = await runBypass(detected.service, detected.url.href);
+    const outcome = await runBypass(detected.service, detected.url.href, () => {}, lootResult);
     const seconds = ((Date.now() - started) / 1000).toFixed(3);
 
     if (!outcome.success) {
+      if (outcome.needsLootResult) {
+        await reply.edit({ components: [lootResultPrompt(url)] });
+        return false;
+      }
       await reply.edit({ components: [errorComponents(outcome.result)] });
       return false;
     }
@@ -156,6 +194,14 @@ async function processBypass({ url, user, reply }) {
     }
 
     await reply.edit({ components: [buildSuccess(result, seconds, user, id)] });
+
+    if (autoChannel) {
+      if (originalMessage) {
+        try { await originalMessage.delete(); } catch {}
+      }
+      scheduleDelete(reply, AUTO_DELETE_MS);
+    }
+
     return true;
   } catch (error) {
     await reply.edit({ components: [errorComponents(error?.message || "Bypass failed.")] });
@@ -163,7 +209,26 @@ async function processBypass({ url, user, reply }) {
   }
 }
 
-async function startBypass(message, url) {
+function parseLootResult(args) {
+  const idx = args.findIndex((a) => a.startsWith("lootResult:"));
+  if (idx === -1) return { url: args[0], lootResult: null };
+  const lootResult = args[idx].slice("lootResult:".length);
+  const remaining = args.filter((_, i) => i !== idx);
+  return { url: remaining[0], lootResult };
+}
+
+async function startBypass(message, args) {
+  if (!args || !args.length) {
+    await message.reply(
+      v2Options(
+        baseContainer().addTextDisplayComponents(text(`## Usage\n\`${PREFIX}bypass <url>\`\n\`${PREFIX}bypass <url> lootResult:<ticket2_url>\``))
+      )
+    );
+    return;
+  }
+
+  const { url, lootResult } = parseLootResult(args);
+
   if (!url) {
     await message.reply(
       v2Options(
@@ -179,6 +244,7 @@ async function startBypass(message, url) {
     url,
     user: message.author,
     reply,
+    lootResult,
   });
 }
 
@@ -199,12 +265,15 @@ async function registerSlashCommands() {
     .setDescription("Bypass a URL")
     .addStringOption(option =>
       option.setName("url").setDescription("URL to bypass").setRequired(true)
+    )
+    .addStringOption(option =>
+      option.setName("lootresult").setDescription("ticket2 URL for loot-link manual step").setRequired(false)
     );
 
   const autoBypassCommand = new SlashCommandBuilder()
     .setName("auto-bypass")
     .setDescription("Configure automatic bypass for a channel")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand(subcommand =>
       subcommand
         .setName("set")
@@ -215,6 +284,12 @@ async function registerSlashCommands() {
             .setDescription("Channel where URLs will be automatically bypassed")
             .addChannelTypes(ChannelType.GuildText)
             .setRequired(true)
+        )
+        .addRoleOption(option =>
+          option
+            .setName("role")
+            .setDescription("Role required to use the auto-bypass channel (leave empty = everyone)")
+            .setRequired(false)
         )
     )
     .addSubcommand(subcommand =>
@@ -238,22 +313,32 @@ client.once("ready", async () => {
 client.on("messageCreate", async message => {
   if (message.author.bot || !message.guild) return;
 
-  const autoChannelId = autoBypassChannels[message.guild.id];
+  const guildConfig = autoBypassChannels[message.guild.id];
+  const autoChannelId = guildConfig?.channelId ?? guildConfig;
+  const requiredRoleId = guildConfig?.roleId ?? null;
 
   if (autoChannelId === message.channel.id) {
     if (!isUrlOnly(message.content)) {
-      try {
-        await message.delete();
-      } catch {}
+      try { await message.delete(); } catch {}
       return;
     }
 
+    if (!memberHasRole(message.member, requiredRoleId)) {
+      const notice = await message.reply(v2Options(noPermissionComponents()));
+      try { await message.delete(); } catch {}
+      scheduleDelete(notice, AUTO_DELETE_MS);
+      return;
+    }
+
+    const originalMessage = message;
     const reply = await message.reply(v2Options(loadingComponents()));
 
     await processBypass({
       url: message.content.trim(),
       user: message.author,
       reply,
+      originalMessage,
+      autoChannel: true,
     });
 
     return;
@@ -266,13 +351,15 @@ client.on("messageCreate", async message => {
 
   if (command !== "bypass") return;
 
-  await startBypass(message, args[0]);
+  await startBypass(message, args);
 });
 
 client.on("interactionCreate", async interaction => {
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === "bypass") {
       const url = interaction.options.getString("url", true);
+      const lootResult = interaction.options.getString("lootresult") || null;
+
       const reply = await interaction.reply({
         ...v2Options(loadingComponents()),
         withResponse: true,
@@ -284,15 +371,16 @@ client.on("interactionCreate", async interaction => {
         url,
         user: interaction.user,
         reply: message,
+        lootResult,
       });
 
       return;
     }
 
     if (interaction.commandName === "auto-bypass") {
-      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
         await interaction.reply({
-          content: "You need Manage Server permission to configure Auto Bypass.",
+          content: "You need Administrator permission to configure Auto Bypass.",
           ephemeral: true,
         });
         return;
@@ -302,11 +390,18 @@ client.on("interactionCreate", async interaction => {
 
       if (subcommand === "set") {
         const channel = interaction.options.getChannel("channel", true);
-        autoBypassChannels[interaction.guildId] = channel.id;
+        const role = interaction.options.getRole("role") || null;
+
+        autoBypassChannels[interaction.guildId] = {
+          channelId: channel.id,
+          roleId: role ? role.id : null,
+        };
         saveAutoBypass();
 
+        const roleText = role ? ` Only members with the **${role.name}** role can use it.` : " Anyone can use it.";
+
         await interaction.reply({
-          content: `Auto Bypass is now enabled in ${channel}. Send a URL there and it will be bypassed automatically. Non-URL messages will be removed.`,
+          content: `Auto Bypass is now enabled in ${channel}.${roleText} Non-URL messages and unauthorized users will be removed.`,
           ephemeral: true,
         });
         return;
