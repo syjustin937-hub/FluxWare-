@@ -1,4 +1,3 @@
-
 const apis = require("./apis");
 
 const SERVICES = apis.PLATFORMS.map((p) => ({
