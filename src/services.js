@@ -34,4 +34,3 @@ function detect(raw) {
 }
 
 module.exports = { SERVICES, LOCAL_SERVICES: [], REMOTE_SERVICES: SERVICES, detect, parseUrl };
-                                
