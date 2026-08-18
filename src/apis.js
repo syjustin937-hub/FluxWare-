@@ -1,4 +1,4 @@
-const BASE = (process.env.BYPASS_API_URL || "https://backend-production-fcfb8.up.railway.app").replace(/\/+$/, "");
+const BASE = (process.env.BYPASS_API_URL || "https://apis.zeox.xyz/").replace(/\/+$/, "");
 const TIMEOUT = Number(process.env.BYPASS_API_TIMEOUT || 300000);
 const WARMUP_TIMEOUT = Number(process.env.BYPASS_API_WARMUP_TIMEOUT || 10000);
 
