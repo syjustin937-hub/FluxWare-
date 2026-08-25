@@ -37,7 +37,7 @@ const INVITE_BOT_URL =
 
 const BANNER_URL = String(
   process.env.BANNER_URL ||
-    "https://ibb.co/20nTFw8W"
+    "https://cdn.discordapp.com/attachments/1535097987905228923/1541905296501243964/Fluxwave-banner.png?ex=6a8f4ab5&is=6a8df935&hm=3bdb60cde209a2ddbe09e7743a0843940ebed1848ef65cb4ea6a57c2344ebdd3&"
 ).trim();
 
 const LOADING_EMOJI = "<a:Loading:1537866256022118421>";
