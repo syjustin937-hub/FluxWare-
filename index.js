@@ -16,7 +16,6 @@ const {
   MessageFlags,
   ChannelType,
   PermissionFlagsBits,
-  AttachmentBuilder,
   MediaGalleryBuilder,
   MediaGalleryItemBuilder,
   ModalBuilder,
@@ -25,7 +24,7 @@ const {
 } = require("discord.js");
 const { detect } = require("./src/services");
 const { runBypass } = require("./src/backend");
-const { warmup } = require("./src/apis");
+const { warmup, PLATFORMS } = require("./src/apis");
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const PREFIX = process.env.PREFIX || "a!";
@@ -33,7 +32,7 @@ const SUPPORT_SERVER_URL = process.env.SUPPORT_SERVER_URL || "https://discord.gg
 const INVITE_BOT_URL = process.env.INVITE_BOT_URL || "https://discord.com/oauth2/authorize?client_id=1537831595787030598&permissions=8&integration_type=0&scope=bot%20applications.commands";
 const AUTO_BYPASS_FILE = path.join(__dirname, "autobypass.json");
 const AUTO_DELETE_MS = 5000;
-const BANNER_PATH = path.join(__dirname, "assets", "fluxwave-banner.png");
+const BANNER_URL = String(process.env.BANNER_URL || "").trim();
 const EMBED_CONFIG_FILE = path.join(__dirname, "embed-bypass.json");
 const LOADING_EMOJI = "<a:Loading:1537866256022118421>";
 const CHECK_EMOJI = "<:Check:1537866209301762158>";
@@ -82,8 +81,12 @@ function saveEmbedBypass() {
 }
 
 function savedEveryoneSendState(channel) {
-  const ow = channel.permissionOverwrites.cache.get(channel.guild.roles.everyone.id);
+  const overwrites = channel.permissionOverwrites;
+  const everyoneId = channel.guild.roles.everyone.id;
+  const ow = overwrites?.cache?.get(everyoneId);
+
   if (!ow) return null;
+
   return {
     allow: ow.allow.has(PermissionFlagsBits.SendMessages),
     deny: ow.deny.has(PermissionFlagsBits.SendMessages),
@@ -92,25 +95,28 @@ function savedEveryoneSendState(channel) {
 
 async function lockEmbedChannel(channel) {
   const saved = savedEveryoneSendState(channel);
-  await channel.permissionOverwrites.edit(channel.guild.roles.everyone, { SendMessages: false });
-  if (channel.guild.members.me) {
-    await channel.permissionOverwrites.edit(channel.guild.members.me, {
-      SendMessages: true,
-      ViewChannel: true,
-    });
-  }
+
+  await channel.permissionOverwrites.edit(channel.guild.roles.everyone, {
+    SendMessages: false,
+  });
+
   return saved;
 }
 
 async function restoreEmbedChannel(channel, saved) {
   if (!saved) {
-    await channel.permissionOverwrites.edit(channel.guild.roles.everyone, { SendMessages: null });
+    await channel.permissionOverwrites.edit(channel.guild.roles.everyone, {
+      SendMessages: null,
+    });
     return;
   }
-  const state = saved.deny ? false : (saved.allow ? true : null);
-  await channel.permissionOverwrites.edit(channel.guild.roles.everyone, { SendMessages: state });
-}
 
+  const state = saved.deny ? false : (saved.allow ? true : null);
+
+  await channel.permissionOverwrites.edit(channel.guild.roles.everyone, {
+    SendMessages: state,
+  });
+}
 function cleanResult(value) {
   return String(value ?? "").trim() || "No result returned.";
 }
@@ -136,23 +142,28 @@ function makeButtons(id) {
 }
 
 function buildMainPanel() {
-  const media = new MediaGalleryBuilder().addItems(
-    new MediaGalleryItemBuilder().setURL("attachment://fluxwave-banner.png")
-  );
-
-  return new ContainerBuilder()
+  const panel = new ContainerBuilder()
     .addTextDisplayComponents(text("## **FLUXWAVE BYPASS LINK**"))
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(
-      text("**Click** Bypass, **paste your link in the** url bypass **field, then press** Submit.\\n\\n-# Enter your link and submit it to continue.\\n-# Please wait a moment while your request is being processed.\\n-# Your result will appear once the process is complete.")
+      text("**Click** Bypass, **paste your link in the** url bypass **field, then press** Submit.\n\n-# Enter your link and submit it to continue.\n-# Please wait a moment while your request is being processed.\n-# Your result will appear once the process is complete.")
     )
-    .addSeparatorComponents(separator())
-    .addMediaGalleryComponents(media)
+    .addSeparatorComponents(separator());
+
+  if (BANNER_URL) {
+    panel.addMediaGalleryComponents(
+      new MediaGalleryBuilder().addItems(
+        new MediaGalleryItemBuilder().setURL(BANNER_URL)
+      )
+    );
+  }
+
+  return panel
     .addTextDisplayComponents(text("-# Made by FluxWave"))
     .addActionRowComponents(
       new ActionRowBuilder().addComponents(
         new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel("<:Linkv2:1541753997445300325> Bypass").setCustomId("fluxwave:bypass"),
-        new ButtonBuilder().setStyle(ButtonStyle.Secondary).setLabel("Support Info").setCustomId("fluxwave:support"),
+        new ButtonBuilder().setStyle(ButtonStyle.Secondary).setLabel("Support info").setCustomId("fluxwave:support")
       )
     );
 }
@@ -244,12 +255,10 @@ function deleteAfter(message, delay = AUTO_DELETE_MS) {
 }
 
 async function sendEmbedBypassPanel(channel) {
-  const message = await channel.send({
+  return channel.send({
     components: [buildMainPanel()],
-    files: [new AttachmentBuilder(BANNER_PATH, { name: "fluxwave-banner.png" })],
     flags: MessageFlags.IsComponentsV2,
   });
-  return message;
 }
 
 async function processBypass({ url, user, reply, originalMessage = null, autoChannel = false }) {
@@ -370,7 +379,7 @@ async function registerSlashCommands() {
   await client.application.commands.set([bypassCommand, enableCommand, disableCommand]);
 }
 
-client.once("ready", async () => {
+client.once("clientReady", async () => {
   await registerSlashCommands();
   warmup().catch(() => {});
 
@@ -440,7 +449,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     if (interaction.commandName === "enable" && interaction.options.getSubcommand() === "embed-bypass") {
-      const channel = interaction.options.getChannel("channel", true);
+      let channel = interaction.options.getChannel("channel", true);
       if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
         await interaction.reply({ content: "You need Administrator permission.", ephemeral: true });
         return;
@@ -449,6 +458,14 @@ client.on("interactionCreate", async (interaction) => {
         await interaction.reply({ content: "Please select a text channel.", ephemeral: true });
         return;
       }
+
+      channel = await interaction.guild.channels.fetch(channel.id);
+
+      if (!channel || channel.type !== ChannelType.GuildText) {
+        await interaction.reply({ content: "Could not resolve that text channel.", ephemeral: true });
+        return;
+      }
+
       try {
         const saved = savedEveryoneSendState(channel);
         await lockEmbedChannel(channel);
@@ -468,11 +485,17 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     if (interaction.commandName === "disable" && interaction.options.getSubcommand() === "embed-bypass") {
-      const channel = interaction.options.getChannel("channel", true);
+      let channel = interaction.options.getChannel("channel", true);
       if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
         await interaction.reply({ content: "You need Administrator permission.", ephemeral: true });
         return;
       }
+      channel = await interaction.guild.channels.fetch(channel.id);
+      if (!channel || channel.type !== ChannelType.GuildText) {
+        await interaction.reply({ content: "Could not resolve that text channel.", ephemeral: true });
+        return;
+      }
+
       const config = embedBypassChannels[channel.id];
       try {
         if (config) await restoreEmbedChannel(channel, config.savedEveryoneSendState);
