@@ -9,12 +9,7 @@ const {
   SlashCommandBuilder,
   PermissionsBitField,
   ActivityType,
-  ContainerBuilder,
-  TextDisplayBuilder,
-  SeparatorBuilder,
-  MessageFlags,
-  MediaGalleryBuilder,
-  MediaGalleryItemBuilder,
+  EmbedBuilder,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
@@ -63,128 +58,106 @@ function cleanResult(value) {
   return String(value ?? "").trim() || "No result returned.";
 }
 
-function text(content) {
-  return new TextDisplayBuilder().setContent(content);
-}
-
-function separator() {
-  return new SeparatorBuilder()
-    .setDivider(true)
-    .setSpacing(1);
-}
-
 function buildMainPanel() {
-  return new ContainerBuilder()
-    .addTextDisplayComponents(
-      text("## **FLUXWAVE BYPASS LINK**")
+  const embed = new EmbedBuilder()
+    .setTitle("FLUXWAVE BYPASS LINK")
+    .setDescription(
+      "**Click** Bypass, **paste your link in the** url bypass **field, then press** Submit.\n\n" +
+        "Enter your link and submit it to continue.\n" +
+        "Please wait a moment while your request is being processed.\n" +
+        "Your result will appear once the process is complete."
     )
-    .addSeparatorComponents(separator())
-    .addTextDisplayComponents(
-      text(
-        "**Click** Bypass, **paste your link in the** url bypass **field, then press** Submit.\n\n-# Enter your link and submit it to continue.\n-# Please wait a moment while your request is being processed.\n-# Your result will appear once the process is complete."
-      )
-    )
-    .addSeparatorComponents(separator())
-    .addMediaGalleryComponents(
-      new MediaGalleryBuilder().addItems(
-        new MediaGalleryItemBuilder().setURL(BANNER_URL)
-      )
-    )
-    .addTextDisplayComponents(
-      text("-# Made by FluxWave")
-    )
-    .addActionRowComponents(
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setStyle(ButtonStyle.Success)
-          .setEmoji({
-            name: "Linkv2",
-            id: "1541753997445300325",
-          })
-          .setLabel("Bypass")
-          .setCustomId("fluxwave:bypass"),
-        new ButtonBuilder()
-          .setStyle(ButtonStyle.Secondary)
-          .setLabel("Support info")
-          .setCustomId("fluxwave:support"),
-        new ButtonBuilder()
-          .setStyle(ButtonStyle.Link)
-          .setLabel("Invite Bot")
-          .setURL(INVITE_BOT_URL),
-        new ButtonBuilder()
-          .setStyle(ButtonStyle.Link)
-          .setLabel("Support Server")
-          .setURL(SUPPORT_SERVER_URL)
-      )
-    );
-}
+    .setImage(BANNER_URL)
+    .setFooter({
+      text: "Made by FluxWave",
+    });
 
-function panelPostComponents() {
-  return new ContainerBuilder()
-    .addTextDisplayComponents(
-      text("## **FluxWave Bypass Panel**")
-    )
-    .addSeparatorComponents(separator())
-    .addTextDisplayComponents(
-      text(
-        "Press **Post Panel** to send the FluxWave Bypass panel in this channel."
-      )
-    )
-    .addActionRowComponents(
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setStyle(ButtonStyle.Success)
-          .setLabel("Post Panel")
-          .setCustomId("fluxwave:post-panel")
-      )
-    );
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setStyle(ButtonStyle.Success)
+      .setEmoji({
+        name: "Linkv2",
+        id: "1541753997445300325",
+      })
+      .setLabel("Bypass")
+      .setCustomId("fluxwave:bypass"),
+
+    new ButtonBuilder()
+      .setStyle(ButtonStyle.Secondary)
+      .setLabel("Support info")
+      .setCustomId("fluxwave:support")
+  );
+
+  const links = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setStyle(ButtonStyle.Link)
+      .setLabel("Invite Bot")
+      .setURL(INVITE_BOT_URL),
+
+    new ButtonBuilder()
+      .setStyle(ButtonStyle.Link)
+      .setLabel("Support Server")
+      .setURL(SUPPORT_SERVER_URL)
+  );
+
+  return {
+    embeds: [embed],
+    components: [row, links],
+  };
 }
 
 function supportInfoComponents() {
-  const services = PLATFORMS
-    .map((p) => `• ${p.name}`)
-    .join("\n");
+  const services = PLATFORMS.map((p) => `• ${p.name}`).join("\n");
 
-  return new ContainerBuilder()
-    .addTextDisplayComponents(
-      text("## **FluxWave Support Info**")
+  const embed = new EmbedBuilder()
+    .setTitle("FluxWave Support Info")
+    .setDescription(
+      `**Currently listed services:**\n${
+        services || "• No services listed."
+      }`
     )
-    .addSeparatorComponents(separator())
-    .addTextDisplayComponents(
-      text(
-        `-# Currently listed services:\n${
-          services || "• No services listed."
-        }`
-      )
-    )
-    .addSeparatorComponents(separator())
-    .addTextDisplayComponents(
-      text(
-        "-# Supported service information is provided by the FluxWave backend."
-      )
-    );
+    .setFooter({
+      text: "Supported service information is provided by the FluxWave backend.",
+    });
+
+  return {
+    embeds: [embed],
+  };
 }
 
 function bypassModal() {
+  const input = new TextInputBuilder()
+    .setCustomId("url")
+    .setLabel("url bypass")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("https://...")
+    .setRequired(true)
+    .setMaxLength(2000);
+
+  const row = new ActionRowBuilder().addComponents(input);
+
   return new ModalBuilder()
     .setCustomId("fluxwave:bypass-modal")
-    .setTitle("FluxWave Bypass")
-    .addLabelComponents(
-      new TextInputBuilder()
-        .setCustomId("url")
-        .setLabel("URL Bypass")
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder("Paste your link here...")
-        .setRequired(true)
-        .setMaxLength(2000)
-    );
+    .setTitle("Bypass systems")
+    .addComponents(row);
 }
 
-function buildSuccess(result, seconds, user, id) {
+function buildLoading() {
+  const embed = new EmbedBuilder()
+    .setDescription(`${LOADING_EMOJI} **FluxWave Bypass is thinking...**`)
+    .setColor(0x5865f2);
+
+  return {
+    embeds: [embed],
+    components: [],
+  };
+}
+
+function buildSuccess(result, seconds, id) {
   const value = cleanResult(result);
 
   const mobile = value
-    .replace(/``/g, "")
+    .replace(/```/g, "")
     .replace(/`/g, "")
     .slice(0, 1000);
 
@@ -193,122 +166,71 @@ function buildSuccess(result, seconds, user, id) {
     .replace(/`/g, "")
     .slice(0, 3900);
 
-  return new ContainerBuilder()
-    .setAccentColor(5763719)
-    .addTextDisplayComponents(
-      text(
-        CHECK_EMOJI +
-          "  **Bypass Success**"
-      )
+  const embed = new EmbedBuilder()
+    .setColor(0x57f287)
+    .setTitle(`${CHECK_EMOJI} Bypass Success`)
+    .addFields(
+      {
+        name: `${MOBILE_EMOJI} Mobile Copy`,
+        value: `\`\`\`\n${mobile}\n\`\`\``,
+      },
+      {
+        name: `${COMPUTER_EMOJI} PC Copy`,
+        value: `\`\`\`\n${pc}\n\`\`\``,
+      }
     )
-    .addSeparatorComponents(separator())
-    .addTextDisplayComponents(
-      text(
-        MOBILE_EMOJI +
-          " **Mobile Copy**\n```\n" +
-          mobile +
-          "\n```"
-      )
-    )
-    .addTextDisplayComponents(
-      text(
-        COMPUTER_EMOJI +
-          " **PC Copy**\n```\n" +
-          pc +
-          "\n```"
-      )
-    )
-    .addSeparatorComponents(separator())
-    .addTextDisplayComponents(
-      text(
-        "-# Processed in " +
-          seconds +
-          "s"
-      )
-    )
-    .addActionRowComponents(
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setStyle(ButtonStyle.Secondary)
-          .setLabel("View Result")
-          .setCustomId("view_result:" + id),
-        new ButtonBuilder()
-          .setStyle(ButtonStyle.Link)
-          .setLabel("Invite Bot")
-          .setURL(INVITE_BOT_URL),
-        new ButtonBuilder()
-          .setStyle(ButtonStyle.Link)
-          .setLabel("Support Server")
-          .setURL(SUPPORT_SERVER_URL)
-      )
-    );
-}
+    .setFooter({
+      text: `Processed in ${seconds}s • FluxWave`,
+    });
 
-function errorComponents(result) {
-  return new ContainerBuilder()
-    .addTextDisplayComponents(
-      text("## Bypass Failed")
-    )
-    .addSeparatorComponents(separator())
-    .addTextDisplayComponents(
-      text(cleanResult(result).slice(0, 3900))
-    );
-}
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setStyle(ButtonStyle.Secondary)
+      .setLabel("View Result")
+      .setCustomId(`view_result:${id}`),
 
-function loadingComponents() {
-  return new ContainerBuilder()
-    .addTextDisplayComponents(
-      text(
-        `${LOADING_EMOJI} **Processing Bypass**`
-      )
-    )
-    .addSeparatorComponents(separator())
-    .addTextDisplayComponents(
-      text(
-        "-# Processing the submitted URL..."
-      )
-    );
-}
+    new ButtonBuilder()
+      .setStyle(ButtonStyle.Link)
+      .setLabel("Invite Bot")
+      .setURL(INVITE_BOT_URL),
 
-function v2Options(container, ephemeral = false) {
+    new ButtonBuilder()
+      .setStyle(ButtonStyle.Link)
+      .setLabel("Support Server")
+      .setURL(SUPPORT_SERVER_URL)
+  );
+
   return {
-    components: [container],
-    flags:
-      MessageFlags.IsComponentsV2 |
-      (ephemeral
-        ? MessageFlags.Ephemeral
-        : 0),
+    embeds: [embed],
+    components: [row],
   };
 }
 
-async function editV2(interaction, container) {
-  await interaction.editReply({
-    components: [container],
-  });
+function buildError(message) {
+  const embed = new EmbedBuilder()
+    .setColor(0xed4245)
+    .setTitle("Bypass Failed")
+    .setDescription(cleanResult(message).slice(0, 4000))
+    .setFooter({
+      text: "FluxWave",
+    });
+
+  return {
+    embeds: [embed],
+    components: [],
+  };
 }
 
-async function processBypass({
-  url,
-  user,
-  interaction,
-}) {
+async function processBypass({ url, user, reply }) {
   const detected = detect(url);
 
   if (!detected.url) {
-    await editV2(
-      interaction,
-      errorComponents("Invalid URL.")
-    );
+    await reply.edit(buildError("Invalid URL."));
     return false;
   }
 
   if (!detected.service) {
-    await editV2(
-      interaction,
-      errorComponents(
-        "This link could not be processed."
-      )
-    );
+    await reply.edit(buildError("This link could not be processed."));
     return false;
   }
 
@@ -321,31 +243,20 @@ async function processBypass({
       () => {}
     );
 
-    const seconds = (
-      (Date.now() - started) /
-      1000
-    ).toFixed(3);
+    const seconds = ((Date.now() - started) / 1000).toFixed(3);
 
     if (!outcome.success) {
-      await editV2(
-        interaction,
-        errorComponents(
-          outcome.result ||
-            "Bypass failed."
-        )
+      await reply.edit(
+        buildError(outcome.result || "Bypass failed.")
       );
       return false;
     }
 
-    const result = cleanResult(
-      outcome.result
-    );
+    const result = cleanResult(outcome.result);
 
     const id =
       `${user.id}:${Date.now()}:` +
-      Math.random()
-        .toString(36)
-        .slice(2, 8);
+      Math.random().toString(36).slice(2, 8);
 
     results.set(id, {
       userId: user.id,
@@ -353,33 +264,23 @@ async function processBypass({
     });
 
     if (results.size > 1000) {
-      results.delete(
-        results.keys().next().value
-      );
+      const firstKey = results.keys().next().value;
+      if (firstKey) {
+        results.delete(firstKey);
+      }
     }
 
-    await editV2(
-      interaction,
-      buildSuccess(
-        result,
-        seconds,
-        user,
-        id
-      )
+    await reply.edit(
+      buildSuccess(result, seconds, id)
     );
 
     return true;
   } catch (error) {
-    console.error(
-      "Bypass processing error:",
-      error
-    );
+    console.error("Bypass error:", error);
 
-    await editV2(
-      interaction,
-      errorComponents(
-        error?.message ||
-          "Bypass failed."
+    await reply.edit(
+      buildError(
+        error?.message || "Bypass failed."
       )
     );
 
@@ -388,26 +289,22 @@ async function processBypass({
 }
 
 async function registerSlashCommands() {
-  const bypassCommand =
-    new SlashCommandBuilder()
-      .setName("bypass")
-      .setDescription("Bypass a URL")
-      .addStringOption((option) =>
-        option
-          .setName("url")
-          .setDescription("URL to bypass")
-          .setRequired(true)
-      );
+  const bypassCommand = new SlashCommandBuilder()
+    .setName("bypass")
+    .setDescription("Bypass a URL")
+    .addStringOption((option) =>
+      option
+        .setName("url")
+        .setDescription("URL to bypass")
+        .setRequired(true)
+    );
 
-  const fluxwaveBypassCommand =
-    new SlashCommandBuilder()
-      .setName("fluxwavebypass")
-      .setDescription(
-        "Post the FluxWave Bypass panel"
-      )
-      .setDefaultMemberPermissions(
-        PermissionsBitField.Flags.Administrator
-      );
+  const fluxwaveBypassCommand = new SlashCommandBuilder()
+    .setName("fluxwavebypass")
+    .setDescription("Post the FluxWave Bypass panel")
+    .setDefaultMemberPermissions(
+      PermissionsBitField.Flags.Administrator
+    );
 
   await client.application.commands.set([
     bypassCommand,
@@ -415,282 +312,168 @@ async function registerSlashCommands() {
   ]);
 }
 
-client.once(
-  "clientReady",
-  async () => {
-    try {
-      await registerSlashCommands();
-    } catch (error) {
-      console.error(
-        "Command registration error:",
-        error
-      );
-    }
+client.once("clientReady", async () => {
+  await registerSlashCommands();
 
-    warmup().catch(() => {});
+  warmup().catch(() => {});
 
-    client.user.setPresence({
-      status: "online",
-      activities: [
-        {
-          name: "Bypassing links",
-          type: ActivityType.Watching,
-        },
-      ],
-    });
+  client.user.setPresence({
+    status: "online",
+    activities: [
+      {
+        name: "Bypassing links",
+        type: ActivityType.Watching,
+      },
+    ],
+  });
 
-    console.log(
-      `Logged in as ${client.user.tag}`
-    );
-  }
-);
+  console.log(`Logged in as ${client.user.tag}`);
+});
 
-client.on(
-  "interactionCreate",
-  async (interaction) => {
-    try {
-      if (
-        interaction.isChatInputCommand()
-      ) {
+client.on("interactionCreate", async (interaction) => {
+  try {
+    if (interaction.isChatInputCommand()) {
+      if (interaction.commandName === "fluxwavebypass") {
         if (
-          interaction.commandName ===
-          "fluxwavebypass"
-        ) {
-          if (
-            !interaction.memberPermissions?.has(
-              PermissionsBitField.Flags.Administrator
-            )
-          ) {
-            await interaction.reply({
-              content:
-                "You need Administrator permission to use this command.",
-              flags:
-                MessageFlags.Ephemeral,
-            });
-
-            return;
-          }
-
-          await interaction.reply(
-            v2Options(
-              panelPostComponents(),
-              true
-            )
-          );
-
-          return;
-        }
-
-        if (
-          interaction.commandName ===
-          "bypass"
-        ) {
-          const url =
-            interaction.options.getString(
-              "url",
-              true
-            );
-
-          await interaction.deferReply();
-
-          await interaction.editReply(
-            v2Options(
-              loadingComponents()
-            )
-          );
-
-          await processBypass({
-            url,
-            user: interaction.user,
-            interaction,
-          });
-
-          return;
-        }
-
-        return;
-      }
-
-      if (interaction.isButton()) {
-        if (
-          interaction.customId ===
-          "fluxwave:post-panel"
-        ) {
-          if (
-            !interaction.memberPermissions?.has(
-              PermissionsBitField.Flags.Administrator
-            )
-          ) {
-            await interaction.reply({
-              content:
-                "You need Administrator permission to post the panel.",
-              flags:
-                MessageFlags.Ephemeral,
-            });
-
-            return;
-          }
-
-          await interaction.channel.send(
-            v2Options(
-              buildMainPanel()
-            )
-          );
-
-          await interaction.update({
-            content:
-              "Panel posted successfully.",
-            components: [],
-            embeds: [],
-            flags:
-              MessageFlags.Ephemeral,
-          });
-
-          return;
-        }
-
-        if (
-          interaction.customId ===
-          "fluxwave:bypass"
-        ) {
-          await interaction.showModal(
-            bypassModal()
-          );
-
-          return;
-        }
-
-        if (
-          interaction.customId ===
-          "fluxwave:support"
-        ) {
-          await interaction.reply(
-            v2Options(
-              supportInfoComponents(),
-              true
-            )
-          );
-
-          return;
-        }
-
-        if (
-          interaction.customId.startsWith(
-            "view_result:"
+          !interaction.memberPermissions?.has(
+            PermissionsBitField.Flags.Administrator
           )
         ) {
-          const id =
-            interaction.customId.slice(
-              "view_result:".length
-            );
-
-          const data =
-            results.get(id);
-
-          if (!data) {
-            await interaction.reply({
-              content:
-                "This result is no longer available.",
-              flags:
-                MessageFlags.Ephemeral,
-            });
-
-            return;
-          }
-
-          if (
-            interaction.user.id !==
-            data.userId
-          ) {
-            await interaction.reply({
-              content:
-                "Only the user who requested this bypass can view the result.",
-              flags:
-                MessageFlags.Ephemeral,
-            });
-
-            return;
-          }
-
           await interaction.reply({
             content:
-              data.result.slice(0, 2000),
-            flags:
-              MessageFlags.Ephemeral,
+              "You need Administrator permission to use this command.",
+            ephemeral: true,
           });
 
           return;
         }
 
+        await interaction.reply(buildMainPanel());
         return;
       }
 
-      if (
-        interaction.isModalSubmit() &&
-        interaction.customId ===
-          "fluxwave:bypass-modal"
-      ) {
-        const url =
-          interaction.fields
-            .getTextInputValue("url")
-            .trim();
+      if (interaction.commandName === "bypass") {
+        const url = interaction.options.getString(
+          "url",
+          true
+        );
 
         await interaction.deferReply({
-          flags:
-            MessageFlags.IsComponentsV2 |
-            MessageFlags.Ephemeral,
+          ephemeral: true,
         });
 
-        await interaction.editReply({
-          components: [
-            loadingComponents(),
-          ],
-        });
+        const message = await interaction.editReply(
+          buildLoading()
+        );
 
         await processBypass({
           url,
           user: interaction.user,
-          interaction,
+          reply: message,
         });
 
         return;
       }
-    } catch (error) {
-      console.error(
-        "Interaction error:",
-        error
-      );
+    }
 
-      try {
-        if (
-          interaction.deferred ||
-          interaction.replied
-        ) {
-          await interaction.editReply({
-            components: [
-              errorComponents(
-                "Something went wrong while processing the request."
-              ),
-            ],
-          });
-        } else {
+    if (interaction.isButton()) {
+      if (interaction.customId === "fluxwave:bypass") {
+        await interaction.showModal(bypassModal());
+        return;
+      }
+
+      if (interaction.customId === "fluxwave:support") {
+        await interaction.reply({
+          ...supportInfoComponents(),
+          ephemeral: true,
+        });
+
+        return;
+      }
+
+      if (
+        interaction.customId.startsWith("view_result:")
+      ) {
+        const id = interaction.customId.slice(
+          "view_result:".length
+        );
+
+        const data = results.get(id);
+
+        if (!data) {
           await interaction.reply({
             content:
-              "Something went wrong while processing the request.",
-            flags:
-              MessageFlags.Ephemeral,
+              "This result is no longer available.",
+            ephemeral: true,
           });
+
+          return;
         }
-      } catch {}
+
+        if (interaction.user.id !== data.userId) {
+          await interaction.reply({
+            content:
+              "Only the user who requested this bypass can view the result.",
+            ephemeral: true,
+          });
+
+          return;
+        }
+
+        await interaction.reply({
+          content: data.result.slice(0, 2000),
+          ephemeral: true,
+        });
+
+        return;
+      }
+    }
+
+    if (
+      interaction.isModalSubmit() &&
+      interaction.customId ===
+        "fluxwave:bypass-modal"
+    ) {
+      const url = interaction.fields
+        .getTextInputValue("url")
+        .trim();
+
+      await interaction.deferReply({
+        ephemeral: true,
+      });
+
+      const loading = await interaction.editReply(
+        buildLoading()
+      );
+
+      await processBypass({
+        url,
+        user: interaction.user,
+        reply: loading,
+      });
+
+      return;
+    }
+  } catch (error) {
+    console.error("Interaction error:", error);
+
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content:
+          "Something went wrong while processing the request.",
+        ephemeral: true,
+      }).catch(() => {});
+    } else {
+      await interaction
+        .editReply({
+          content:
+            "Something went wrong while processing the request.",
+          embeds: [],
+          components: [],
+        })
+        .catch(() => {});
     }
   }
-);
-
-client.on("error", (error) => {
-  console.error(
-    "Client error:",
-    error
-  );
 });
 
 client.login(TOKEN);
