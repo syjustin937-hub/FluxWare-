@@ -445,7 +445,7 @@ client.on("interactionCreate", async (interaction) => {
         await interaction.reply({ content: "You need Administrator permission.", ephemeral: true });
         return;
       }
-      if (!channel.isTextBased() || channel.type !== ChannelType.GuildText) {
+      if (channel.type !== ChannelType.GuildText) {
         await interaction.reply({ content: "Please select a text channel.", ephemeral: true });
         return;
       }
