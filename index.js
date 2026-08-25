@@ -94,6 +94,8 @@ function buildMainPanel() {
           .setURL(SUPPORT_SERVER_URL)
       )
     );
+
+  return panel;
 }
 
 function supportInfoComponents() {
@@ -134,7 +136,7 @@ function buildSuccess(result, seconds, user, id) {
     )
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(
-      text(MOBILE_EMOJI + " **Mobile Copy**\n```\n" + mobile + "\n```")
+      text(MOBILE_EMOJI + " **Mobile Copy**\n``\n" + mobile + "\n``")
     )
     .addTextDisplayComponents(
       text(COMPUTER_EMOJI + " **PC Copy**\n```\n" + pc + "\n```")
@@ -174,16 +176,9 @@ function v2Options(container, ephemeral = false) {
   };
 }
 
-function deleteAfter(message, delay = AUTO_DELETE_MS) {
-  setTimeout(async () => {
-    try {
-      await message.delete();
-    } catch {}
-  }, delay);
-}
 
 
-async function processBypass({ url, user, reply, originalMessage = null, autoChannel = false }) {
+async function processBypass({ url, user, reply }) {
   const detected = detect(url);
 
   if (!detected.url) {
@@ -218,9 +213,6 @@ async function processBypass({ url, user, reply, originalMessage = null, autoCha
 
     await reply.edit({ components: [buildSuccess(result, seconds, user, id)] });
 
-    if (autoChannel && originalMessage) {
-      deleteAfter(originalMessage, AUTO_DELETE_MS);
-    }
 
     return true;
   } catch (error) {
@@ -229,42 +221,17 @@ async function processBypass({ url, user, reply, originalMessage = null, autoCha
   }
 }
 
-async function startBypass(message, args) {
-  if (!args || !args.length) {
-    await message.reply(v2Options(new ContainerBuilder().addTextDisplayComponents(text(`## Usage\n\`${PREFIX}bypass <url>\``))));
-    return;
-  }
 
-  const reply = await message.reply(v2Options(loadingComponents()));
-
-  await processBypass({
-    url: args[0],
-    user: message.author,
-    reply,
-  });
-}
-
-function isUrlOnly(content) {
-  const value = String(content || "").trim();
-  if (!value || /\s/.test(value)) return false;
-
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
 
 async function registerSlashCommands() {
   const bypassCommand = new SlashCommandBuilder()
     .setName("bypass")
-    .setDescription("Bypass a supported URL")
+    .setDescription("Open the FluxWave Bypass panel")
     .addStringOption((option) =>
       option
         .setName("url")
-        .setDescription("URL to bypass")
-        .setRequired(true)
+        .setDescription("Optional: bypass a supported URL directly")
+        .setRequired(false)
     );
 
   await client.application.commands.set([bypassCommand]);
@@ -285,7 +252,13 @@ client.once("clientReady", async () => {
 client.on("interactionCreate", async (interaction) => {
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === "bypass") {
-      const url = interaction.options.getString("url", true);
+      const url = interaction.options.getString("url", false);
+
+      if (!url) {
+        await interaction.reply(v2Options(buildMainPanel()));
+        return;
+      }
+
       await interaction.deferReply();
       const message = await interaction.editReply({
         ...v2Options(loadingComponents()),
