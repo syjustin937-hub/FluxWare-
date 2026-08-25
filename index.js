@@ -7,6 +7,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
   SlashCommandBuilder,
+  PermissionsBitField,
   ActivityType,
   ContainerBuilder,
   TextDisplayBuilder,
@@ -132,7 +133,7 @@ function buildSuccess(result, seconds, user, id) {
     )
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(
-      text(MOBILE_EMOJI + " **Mobile Copy**\n``\n" + mobile + "\n``")
+      text(MOBILE_EMOJI + " **Mobile Copy**\n```\n" + mobile + "\n```")
     )
     .addTextDisplayComponents(
       text(COMPUTER_EMOJI + " **PC Copy**\n```\n" + pc + "\n```")
@@ -231,7 +232,14 @@ async function registerSlashCommands() {
       option.setName("url").setDescription("URL to bypass").setRequired(true)
     );
 
-  await client.application.commands.set([bypassCommand]);
+  // Added panel command. Discord requires slash-command names to be lowercase,
+  // so the command is /fluxwavebypass.
+  const fluxwaveBypassCommand = new SlashCommandBuilder()
+    .setName("fluxwavebypass")
+    .setDescription("Post the FluxWave Bypass panel")
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator);
+
+  await client.application.commands.set([bypassCommand, fluxwaveBypassCommand]);
 }
 
 client.once("clientReady", async () => {
@@ -248,6 +256,19 @@ client.once("clientReady", async () => {
 
 client.on("interactionCreate", async (interaction) => {
   if (interaction.isChatInputCommand()) {
+    if (interaction.commandName === "fluxwavebypass") {
+      if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
+        await interaction.reply({
+          content: "You need Administrator permission to use this command.",
+          ephemeral: true,
+        });
+        return;
+      }
+
+      await interaction.reply(v2Options(buildMainPanel()));
+      return;
+    }
+
     if (interaction.commandName === "bypass") {
       const url = interaction.options.getString("url", true);
       await interaction.deferReply();
