@@ -122,7 +122,7 @@ function bypassModal() {
 
 function buildSuccess(result, seconds, user, id) {
   const value = cleanResult(result);
-  const mobile = value.replace(/```/g, "").replace(/`/g, "").slice(0, 1000);
+  const mobile = value.replace(/``/g, "").replace(/`/g, "").slice(0, 1000);
   const pc = value.replace(/```/g, "").replace(/`/g, "").slice(0, 3900);
 
   return new ContainerBuilder()
@@ -132,7 +132,7 @@ function buildSuccess(result, seconds, user, id) {
     )
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(
-      text(MOBILE_EMOJI + " **Mobile Copy**\n```\n" + mobile + "\n```")
+      text(MOBILE_EMOJI + " **Mobile Copy**\n``\n" + mobile + "\n``")
     )
     .addTextDisplayComponents(
       text(COMPUTER_EMOJI + " **PC Copy**\n```\n" + pc + "\n```")
