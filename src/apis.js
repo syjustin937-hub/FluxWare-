@@ -80,7 +80,7 @@ function normalise(res) {
     };
   }
 
-  // Banana One returns:
+  // Backend returns:
   // { status: "success", request: "...", result: "...", elapsed: "...", madeby: "Banana One" }
   if (String(data.status || "").toLowerCase() === "success") {
     const value = data.result || data.url || data.key || "";
@@ -123,7 +123,7 @@ async function bypassWithApis(url, onStep = () => {}) {
   onStep("Sending the link to Banana One...");
 
   try {
-    // Banana One API docs: GET /api?url=<your_link>
+    // FluxWave backend: GET /api?url=<your_link>
     const res = await request(`/api?url=${encodeURIComponent(url)}`, { method: "GET" });
     const result = normalise(res);
 
@@ -172,7 +172,7 @@ async function apiStatus() {
 const HEALTH_CHECKS = [
   {
     id: "bananaone-api",
-    name: "Banana One (/api)",
+    name: "FluxWave (/api)",
     kind: "api",
     run: () => request(`/api?url=${encodeURIComponent("https://link-to.net/xxx")}`, {
       method: "GET",
