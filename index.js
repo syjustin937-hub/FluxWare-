@@ -74,7 +74,7 @@ function separator() {
 }
 
 function buildMainPanel() {
-  const container = new ContainerBuilder()
+  return new ContainerBuilder()
     .addTextDisplayComponents(
       text("## **FLUXWAVE BYPASS LINK**")
     )
@@ -117,8 +117,27 @@ function buildMainPanel() {
           .setURL(SUPPORT_SERVER_URL)
       )
     );
+}
 
-  return container;
+function panelPostComponents() {
+  return new ContainerBuilder()
+    .addTextDisplayComponents(
+      text("## **FluxWave Bypass Panel**")
+    )
+    .addSeparatorComponents(separator())
+    .addTextDisplayComponents(
+      text(
+        "Press **Post Panel** to send the FluxWave Bypass panel in this channel."
+      )
+    )
+    .addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setStyle(ButtonStyle.Success)
+          .setLabel("Post Panel")
+          .setCustomId("fluxwave:post-panel")
+      )
+    );
 }
 
 function supportInfoComponents() {
@@ -179,7 +198,7 @@ function buildSuccess(result, seconds, user, id) {
     .addTextDisplayComponents(
       text(
         CHECK_EMOJI +
-          `  **Bypass Success** • <@${user.id}>`
+          "  **Bypass Success**"
       )
     )
     .addSeparatorComponents(separator())
@@ -204,8 +223,7 @@ function buildSuccess(result, seconds, user, id) {
       text(
         "-# Processed in " +
           seconds +
-          "s • Requested by " +
-          user.username
+          "s"
       )
     )
     .addActionRowComponents(
@@ -240,11 +258,15 @@ function errorComponents(result) {
 function loadingComponents() {
   return new ContainerBuilder()
     .addTextDisplayComponents(
-      text(`${LOADING_EMOJI} **Processing Bypass**`)
+      text(
+        `${LOADING_EMOJI} **Processing Bypass**`
+      )
     )
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(
-      text("-# Processing the submitted URL...")
+      text(
+        "-# Processing the submitted URL..."
+      )
     );
 }
 
@@ -253,16 +275,15 @@ function v2Options(container, ephemeral = false) {
     components: [container],
     flags:
       MessageFlags.IsComponentsV2 |
-      (ephemeral ? MessageFlags.Ephemeral : 0),
+      (ephemeral
+        ? MessageFlags.Ephemeral
+        : 0),
   };
 }
 
-async function editV2(interaction, container, ephemeral = false) {
+async function editV2(interaction, container) {
   await interaction.editReply({
     components: [container],
-    flags:
-      MessageFlags.IsComponentsV2 |
-      (ephemeral ? MessageFlags.Ephemeral : 0),
   });
 }
 
@@ -270,15 +291,13 @@ async function processBypass({
   url,
   user,
   interaction,
-  ephemeral = false,
 }) {
   const detected = detect(url);
 
   if (!detected.url) {
     await editV2(
       interaction,
-      errorComponents("Invalid URL."),
-      ephemeral
+      errorComponents("Invalid URL.")
     );
     return false;
   }
@@ -286,8 +305,9 @@ async function processBypass({
   if (!detected.service) {
     await editV2(
       interaction,
-      errorComponents("This link could not be processed."),
-      ephemeral
+      errorComponents(
+        "This link could not be processed."
+      )
     );
     return false;
   }
@@ -310,18 +330,22 @@ async function processBypass({
       await editV2(
         interaction,
         errorComponents(
-          outcome.result || "Bypass failed."
-        ),
-        ephemeral
+          outcome.result ||
+            "Bypass failed."
+        )
       );
       return false;
     }
 
-    const result = cleanResult(outcome.result);
+    const result = cleanResult(
+      outcome.result
+    );
 
     const id =
       `${user.id}:${Date.now()}:` +
-      Math.random().toString(36).slice(2, 8);
+      Math.random()
+        .toString(36)
+        .slice(2, 8);
 
     results.set(id, {
       userId: user.id,
@@ -341,19 +365,22 @@ async function processBypass({
         seconds,
         user,
         id
-      ),
-      ephemeral
+      )
     );
 
     return true;
   } catch (error) {
+    console.error(
+      "Bypass processing error:",
+      error
+    );
+
     await editV2(
       interaction,
       errorComponents(
         error?.message ||
           "Bypass failed."
-      ),
-      ephemeral
+      )
     );
 
     return false;
@@ -388,38 +415,43 @@ async function registerSlashCommands() {
   ]);
 }
 
-client.once("clientReady", async () => {
-  try {
-    await registerSlashCommands();
-  } catch (error) {
-    console.error(
-      "Command registration error:",
-      error
+client.once(
+  "clientReady",
+  async () => {
+    try {
+      await registerSlashCommands();
+    } catch (error) {
+      console.error(
+        "Command registration error:",
+        error
+      );
+    }
+
+    warmup().catch(() => {});
+
+    client.user.setPresence({
+      status: "online",
+      activities: [
+        {
+          name: "Bypassing links",
+          type: ActivityType.Watching,
+        },
+      ],
+    });
+
+    console.log(
+      `Logged in as ${client.user.tag}`
     );
   }
-
-  warmup().catch(() => {});
-
-  client.user.setPresence({
-    status: "online",
-    activities: [
-      {
-        name: "Bypassing links",
-        type: ActivityType.Watching,
-      },
-    ],
-  });
-
-  console.log(
-    `Logged in as ${client.user.tag}`
-  );
-});
+);
 
 client.on(
   "interactionCreate",
   async (interaction) => {
     try {
-      if (interaction.isChatInputCommand()) {
+      if (
+        interaction.isChatInputCommand()
+      ) {
         if (
           interaction.commandName ===
           "fluxwavebypass"
@@ -432,14 +464,18 @@ client.on(
             await interaction.reply({
               content:
                 "You need Administrator permission to use this command.",
-              ephemeral: true,
+              flags:
+                MessageFlags.Ephemeral,
             });
 
             return;
           }
 
           await interaction.reply(
-            v2Options(buildMainPanel())
+            v2Options(
+              panelPostComponents(),
+              true
+            )
           );
 
           return;
@@ -478,6 +514,43 @@ client.on(
       if (interaction.isButton()) {
         if (
           interaction.customId ===
+          "fluxwave:post-panel"
+        ) {
+          if (
+            !interaction.memberPermissions?.has(
+              PermissionsBitField.Flags.Administrator
+            )
+          ) {
+            await interaction.reply({
+              content:
+                "You need Administrator permission to post the panel.",
+              flags:
+                MessageFlags.Ephemeral,
+            });
+
+            return;
+          }
+
+          await interaction.channel.send(
+            v2Options(
+              buildMainPanel()
+            )
+          );
+
+          await interaction.update({
+            content:
+              "Panel posted successfully.",
+            components: [],
+            embeds: [],
+            flags:
+              MessageFlags.Ephemeral,
+          });
+
+          return;
+        }
+
+        if (
+          interaction.customId ===
           "fluxwave:bypass"
         ) {
           await interaction.showModal(
@@ -511,13 +584,15 @@ client.on(
               "view_result:".length
             );
 
-          const data = results.get(id);
+          const data =
+            results.get(id);
 
           if (!data) {
             await interaction.reply({
               content:
                 "This result is no longer available.",
-              ephemeral: true,
+              flags:
+                MessageFlags.Ephemeral,
             });
 
             return;
@@ -530,7 +605,8 @@ client.on(
             await interaction.reply({
               content:
                 "Only the user who requested this bypass can view the result.",
-              ephemeral: true,
+              flags:
+                MessageFlags.Ephemeral,
             });
 
             return;
@@ -539,7 +615,8 @@ client.on(
           await interaction.reply({
             content:
               data.result.slice(0, 2000),
-            ephemeral: true,
+            flags:
+              MessageFlags.Ephemeral,
           });
 
           return;
@@ -568,16 +645,12 @@ client.on(
           components: [
             loadingComponents(),
           ],
-          flags:
-            MessageFlags.IsComponentsV2 |
-            MessageFlags.Ephemeral,
         });
 
         await processBypass({
           url,
           user: interaction.user,
           interaction,
-          ephemeral: true,
         });
 
         return;
@@ -599,17 +672,13 @@ client.on(
                 "Something went wrong while processing the request."
               ),
             ],
-            flags:
-              MessageFlags.IsComponentsV2 |
-              (interaction.isModalSubmit()
-                ? MessageFlags.Ephemeral
-                : 0),
           });
         } else {
           await interaction.reply({
             content:
               "Something went wrong while processing the request.",
-            ephemeral: true,
+            flags:
+              MessageFlags.Ephemeral,
           });
         }
       } catch {}
@@ -618,7 +687,10 @@ client.on(
 );
 
 client.on("error", (error) => {
-  console.error("Client error:", error);
+  console.error(
+    "Client error:",
+    error
+  );
 });
 
 client.login(TOKEN);
