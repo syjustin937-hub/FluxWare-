@@ -1,4 +1,4 @@
-const BASE = (process.env.BYPASS_API_URL || "https://api.bananaone.dpdns.org/api?url=").replace(/\/+$/, "");
+const BASE = (process.env.BYPASS_API_URL || "https://api.bananaone.dpdns.org").replace(/\/+$/, "");
 const TIMEOUT = Number(process.env.BYPASS_API_TIMEOUT || 300000);
 const WARMUP_TIMEOUT = Number(process.env.BYPASS_API_WARMUP_TIMEOUT || 10000);
 
@@ -72,9 +72,28 @@ async function request(path, { method = "GET", body, timeout = TIMEOUT } = {}) {
 
 function normalise(res) {
   const data = res.json;
+
   if (!data || typeof data !== "object") {
-    return { success: false, result: res.text ? String(res.text).slice(0, 500) : `HTTP ${res.status}` };
+    return {
+      success: false,
+      result: res.text ? String(res.text).slice(0, 500) : `HTTP ${res.status}`,
+    };
   }
+
+  // Banana One returns:
+  // { status: "success", request: "...", result: "...", elapsed: "...", madeby: "Banana One" }
+  if (String(data.status || "").toLowerCase() === "success") {
+    const value = data.result || data.url || data.key || "";
+    return {
+      success: !!value,
+      result: value || "backend returned no result",
+      platform: data.platform || null,
+      logs: Array.isArray(data.logs) ? data.logs : [],
+      tookMs: data.elapsed || data.tookMs,
+    };
+  }
+
+  // Keep compatibility with the previous backend response format.
   if (data.success) {
     const value = data.key || data.url || data.result || "";
     return {
@@ -85,15 +104,15 @@ function normalise(res) {
       tookMs: data.tookMs,
     };
   }
+
   return {
     success: false,
-    result: data.error || data.message || `HTTP ${res.status}`,
+    result: data.error || data.message || data.result || `HTTP ${res.status}`,
     platform: data.platform || null,
     logs: Array.isArray(data.logs) ? data.logs : [],
-    tookMs: data.tookMs,
+    tookMs: data.elapsed || data.tookMs,
   };
 }
-
 async function bypassWithApis(url, onStep = () => {}) {
   const platform = platformFor(url);
   if (!platform) {
@@ -101,51 +120,38 @@ async function bypassWithApis(url, onStep = () => {}) {
   }
 
   onStep(`Platform: ${platform.name}`);
-  onStep("Sending the link to the backend...");
-
-  const errors = [];
+  onStep("Sending the link to Banana One...");
 
   try {
-    const first = normalise(await request(`/api/bypass?url=${encodeURIComponent(url)}`, { method: "GET" }));
-    if (first.success) {
-      for (const line of (first.logs || []).slice(-3)) onStep(String(line));
-      return { ...first, provider: "Private Bypass API" };
-    }
-    errors.push(first.result);
+    // Banana One API docs: GET /api?url=<your_link>
+    const res = await request(`/api?url=${encodeURIComponent(url)}`, { method: "GET" });
+    const result = normalise(res);
 
-    if (first.result && /method|post|not found|405|unsupported/i.test(String(first.result))) {
-      const second = normalise(await request(`/api/bypass`, { method: "POST", body: { url } }));
-      if (second.success) {
-        for (const line of (second.logs || []).slice(-3)) onStep(String(line));
-        return { ...second, provider: "Private Bypass API" };
-      }
-      errors.push(second.result);
-      return { success: false, result: [...new Set(errors)].join("\n"), provider: null };
+    if (result.success) {
+      return { ...result, provider: "Banana One" };
     }
 
-    const second = normalise(await request(`/api/bypass`, { method: "POST", body: { url } }));
-    if (second.success) {
-      for (const line of (second.logs || []).slice(-3)) onStep(String(line));
-      return { ...second, provider: "Private Bypass API" };
+    // Fallback to the documented POST form: POST /api with {"url":"..."}
+    const post = await request(`/api`, { method: "POST", body: { url } });
+    const postResult = normalise(post);
+
+    if (postResult.success) {
+      return { ...postResult, provider: "Banana One" };
     }
-    errors.push(second.result);
+
+    return {
+      success: false,
+      result: [result.result, postResult.result].filter(Boolean).join("\n"),
+      provider: null,
+    };
   } catch (err) {
-    errors.push(err.name === "AbortError" ? "timeout" : err.message || "network error");
-    try {
-      const second = normalise(await request(`/api/bypass`, { method: "POST", body: { url } }));
-      if (second.success) {
-        for (const line of (second.logs || []).slice(-3)) onStep(String(line));
-        return { ...second, provider: "Private Bypass API" };
-      }
-      errors.push(second.result);
-    } catch (fallbackError) {
-      errors.push(fallbackError.name === "AbortError" ? "timeout" : fallbackError.message || "network error");
-    }
+    return {
+      success: false,
+      result: err.name === "AbortError" ? "timeout" : err.message || "network error",
+      provider: null,
+    };
   }
-
-  return { success: false, result: [...new Set(errors)].join("\n"), provider: null };
 }
-
 async function madiumKey(steps) {
   try {
     return normalise(await request("/api/madium/key", { method: "POST", body: { steps } }));
@@ -164,12 +170,16 @@ async function apiStatus() {
 }
 
 const HEALTH_CHECKS = [
-  { id: "backend-health", name: "Private Backend (/health)", kind: "api", run: () => request("/health", { method: "GET", timeout: 15000 }) },
-  { id: "backend-api", name: "Private Backend (/api)", kind: "api", run: () => request("/api", { method: "GET", timeout: 15000 }) },
-  { id: "backend-detect", name: "Bypass engine (/api/detect)", kind: "api", run: () => request(`/api/detect?url=${encodeURIComponent("https://auth.platorelay.com/?d=test")}`, { method: "GET", timeout: 15000 }) },
-  { id: "backend-madium", name: "Madium (/api/madium/config)", kind: "api", run: () => request("/api/madium/config", { method: "GET", timeout: 20000 }) },
+  {
+    id: "bananaone-api",
+    name: "Banana One (/api)",
+    kind: "api",
+    run: () => request(`/api?url=${encodeURIComponent("https://link-to.net/xxx")}`, {
+      method: "GET",
+      timeout: 15000,
+    }),
+  },
 ];
-
 async function probeOne(check) {
   const started = Date.now();
   try {
