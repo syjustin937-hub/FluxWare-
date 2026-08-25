@@ -57,21 +57,19 @@ function separator() {
   return new SeparatorBuilder().setDivider(true).setSpacing(1);
 }
 
-
-
 function buildMainPanel() {
   const panel = new ContainerBuilder()
+    .addMediaGalleryComponents(
+      new MediaGalleryBuilder().addItems(
+        new MediaGalleryItemBuilder().setURL(BANNER_URL)
+      )
+    )
     .addTextDisplayComponents(text("## **FLUXWAVE BYPASS LINK**"))
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(
       text("**Click** Bypass, **paste your link in the** url bypass **field, then press** Submit.\n\n-# Enter your link and submit it to continue.\n-# Please wait a moment while your request is being processed.\n-# Your result will appear once the process is complete.")
     )
     .addSeparatorComponents(separator())
-    .addMediaGalleryComponents(
-      new MediaGalleryBuilder().addItems(
-        new MediaGalleryItemBuilder().setURL(BANNER_URL)
-      )
-    )
     .addTextDisplayComponents(text("-# Made by FluxWave"))
     .addActionRowComponents(
       new ActionRowBuilder().addComponents(
@@ -94,8 +92,6 @@ function buildMainPanel() {
           .setURL(SUPPORT_SERVER_URL)
       )
     );
-
-  return panel;
 }
 
 function supportInfoComponents() {
@@ -136,7 +132,7 @@ function buildSuccess(result, seconds, user, id) {
     )
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(
-      text(MOBILE_EMOJI + " **Mobile Copy**\n``\n" + mobile + "\n``")
+      text(MOBILE_EMOJI + " **Mobile Copy**\n```\n" + mobile + "\n```")
     )
     .addTextDisplayComponents(
       text(COMPUTER_EMOJI + " **PC Copy**\n```\n" + pc + "\n```")
@@ -150,7 +146,15 @@ function buildSuccess(result, seconds, user, id) {
         new ButtonBuilder()
           .setStyle(ButtonStyle.Secondary)
           .setLabel("View Result")
-          .setCustomId("view_result:" + id)
+          .setCustomId("view_result:" + id),
+        new ButtonBuilder()
+          .setStyle(ButtonStyle.Link)
+          .setLabel("Invite Bot")
+          .setURL(INVITE_BOT_URL),
+        new ButtonBuilder()
+          .setStyle(ButtonStyle.Link)
+          .setLabel("Support Server")
+          .setURL(SUPPORT_SERVER_URL)
       )
     );
 }
@@ -175,8 +179,6 @@ function v2Options(container, ephemeral = false) {
     flags: MessageFlags.IsComponentsV2 | (ephemeral ? MessageFlags.Ephemeral : 0),
   };
 }
-
-
 
 async function processBypass({ url, user, reply }) {
   const detected = detect(url);
@@ -221,17 +223,12 @@ async function processBypass({ url, user, reply }) {
   }
 }
 
-
-
 async function registerSlashCommands() {
   const bypassCommand = new SlashCommandBuilder()
     .setName("bypass")
-    .setDescription("Open the FluxWave Bypass panel")
+    .setDescription("Bypass a URL")
     .addStringOption((option) =>
-      option
-        .setName("url")
-        .setDescription("Optional: bypass a supported URL directly")
-        .setRequired(false)
+      option.setName("url").setDescription("URL to bypass").setRequired(true)
     );
 
   await client.application.commands.set([bypassCommand]);
@@ -252,13 +249,7 @@ client.once("clientReady", async () => {
 client.on("interactionCreate", async (interaction) => {
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === "bypass") {
-      const url = interaction.options.getString("url", false);
-
-      if (!url) {
-        await interaction.reply(v2Options(buildMainPanel()));
-        return;
-      }
-
+      const url = interaction.options.getString("url", true);
       await interaction.deferReply();
       const message = await interaction.editReply({
         ...v2Options(loadingComponents()),
@@ -272,7 +263,6 @@ client.on("interactionCreate", async (interaction) => {
 
       return;
     }
-
 
     return;
   }
