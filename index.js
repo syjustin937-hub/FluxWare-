@@ -239,7 +239,7 @@ client.once("clientReady", async () => {
   warmup().catch(() => {});
 
   client.user.setPresence({
-    status: "dnd",
+    status: "online",
     activities: [{ name: "Bypassing links", type: ActivityType.Watching }],
   });
 
