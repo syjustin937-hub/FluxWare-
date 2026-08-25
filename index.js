@@ -64,6 +64,18 @@ function cleanResult(value) {
   return String(value ?? "").trim() || "No result returned.";
 }
 
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error("Bypass request timed out.")),
+        ms
+      )
+    ),
+  ]);
+}
+
 function text(content) {
   return new TextDisplayBuilder().setContent(content);
 }
@@ -319,10 +331,13 @@ async function processBypass({
   const started = Date.now();
 
   try {
-    const outcome = await runBypass(
-      detected.service,
-      detected.url.href,
-      () => {}
+    const outcome = await withTimeout(
+      runBypass(
+        detected.service,
+        detected.url.href,
+        () => {}
+      ),
+      20000
     );
 
     const seconds = (
