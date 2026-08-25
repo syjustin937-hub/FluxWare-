@@ -32,7 +32,7 @@ const SUPPORT_SERVER_URL = process.env.SUPPORT_SERVER_URL || "https://discord.gg
 const INVITE_BOT_URL = process.env.INVITE_BOT_URL || "https://discord.com/oauth2/authorize?client_id=1537831595787030598&permissions=8&integration_type=0&scope=bot%20applications.commands";
 const AUTO_BYPASS_FILE = path.join(__dirname, "autobypass.json");
 const AUTO_DELETE_MS = 5000;
-const BANNER_URL = String(process.env.BANNER_URL || "").trim();
+const BANNER_URL = String(process.env.BANNER_URL || "https://cdn.discordapp.com/attachments/1535097987905228923/1541773763434254420/Fluxwave-banner.png?ex=6a8ed035&is=6a8d7eb5&hm=a2daec647788ffd47a37a654a574b16c95087d0104636710563b0d352a2f06b0&").trim();
 const EMBED_CONFIG_FILE = path.join(__dirname, "embed-bypass.json");
 const LOADING_EMOJI = "<a:Loading:1537866256022118421>";
 const CHECK_EMOJI = "<:Check:1537866209301762158>";
@@ -148,32 +148,42 @@ function buildMainPanel() {
     .addTextDisplayComponents(
       text("**Click** Bypass, **paste your link in the** url bypass **field, then press** Submit.\n\n-# Enter your link and submit it to continue.\n-# Please wait a moment while your request is being processed.\n-# Your result will appear once the process is complete.")
     )
-    .addSeparatorComponents(separator());
-
-  if (BANNER_URL) {
-    panel.addMediaGalleryComponents(
+    .addSeparatorComponents(separator())
+    .addMediaGalleryComponents(
       new MediaGalleryBuilder().addItems(
         new MediaGalleryItemBuilder().setURL(BANNER_URL)
       )
-    );
-  }
-
-  return panel
+    )
     .addTextDisplayComponents(text("-# Made by FluxWave"))
     .addActionRowComponents(
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setStyle(ButtonStyle.Success).setLabel("<:Linkv2:1541753997445300325> Bypass").setCustomId("fluxwave:bypass"),
-        new ButtonBuilder().setStyle(ButtonStyle.Secondary).setLabel("Support info").setCustomId("fluxwave:support")
+        new ButtonBuilder()
+          .setStyle(ButtonStyle.Success)
+          .setEmoji({ name: "Linkv2", id: "1541753997445300325" })
+          .setLabel("Bypass")
+          .setCustomId("fluxwave:bypass"),
+        new ButtonBuilder()
+          .setStyle(ButtonStyle.Secondary)
+          .setLabel("Support info")
+          .setCustomId("fluxwave:support"),
+        new ButtonBuilder()
+          .setStyle(ButtonStyle.Link)
+          .setLabel("Invite Bot")
+          .setURL(INVITE_BOT_URL),
+        new ButtonBuilder()
+          .setStyle(ButtonStyle.Link)
+          .setLabel("Support Server")
+          .setURL(SUPPORT_SERVER_URL)
       )
     );
 }
 
 function supportInfoComponents() {
-  const services = apis.PLATFORMS.map((p) => `• ${p.name}`).join("\\n");
+  const services = PLATFORMS.map((p) => `• ${p.name}`).join("\n");
   return new ContainerBuilder()
     .addTextDisplayComponents(text("## **FluxWave Support Info**"))
     .addSeparatorComponents(separator())
-    .addTextDisplayComponents(text(`-# Currently listed services:\\n${services}`))
+    .addTextDisplayComponents(text(`-# Currently listed services:\n${services || "• No services listed."}`))
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(text("-# Supported service information is provided by the FluxWave backend."));
 }
@@ -196,17 +206,17 @@ function bypassModal() {
 
 function buildSuccess(result, seconds, user, id) {
   const value = cleanResult(result);
-  const mobile = value.replace(/`/g, "\\`").slice(0, 1000);
-  const pc = value.replace(/```/g, "\\`\\`\\`").slice(0, 3900);
+  const mobile = value.replace(/```/g, "").replace(/`/g, "").slice(0, 1000);
+  const pc = value.replace(/```/g, "").replace(/`/g, "").slice(0, 3900);
 
   return new ContainerBuilder()
     .setAccentColor(5763719)
     .addTextDisplayComponents(
-      text(CHECK_EMOJI + "  **Bypass Success** • @user")
+      text(CHECK_EMOJI + `  **Bypass Success** • <@${user.id}>`)
     )
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(
-      text(MOBILE_EMOJI + " **Mobile Copy**\n```" + mobile + "```")
+      text(MOBILE_EMOJI + " **Mobile Copy**\n```\n" + mobile + "\n```")
     )
     .addTextDisplayComponents(
       text(COMPUTER_EMOJI + " **PC Copy**\n```\n" + pc + "\n```")
@@ -432,12 +442,10 @@ client.on("interactionCreate", async (interaction) => {
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === "bypass") {
       const url = interaction.options.getString("url", true);
-      const reply = await interaction.reply({
+      await interaction.deferReply();
+      const message = await interaction.editReply({
         ...v2Options(loadingComponents()),
-        withResponse: true,
       });
-
-      const message = reply.resource?.message || await interaction.fetchReply();
 
       await processBypass({
         url,
