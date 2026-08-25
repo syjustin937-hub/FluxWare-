@@ -18,7 +18,6 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  LabelBuilder,
 } = require("discord.js");
 
 const { detect } = require("./src/services");
@@ -37,7 +36,7 @@ const INVITE_BOT_URL =
 
 const BANNER_URL = String(
   process.env.BANNER_URL ||
-    "https://cdn.discordapp.com/attachments/1535097987905228923/1541773763434254420/Fluxwave-banner.png"
+    "https://cdn.discordapp.com/attachments/1535097987905228923/1541773763434254420/Fluxwave-banner.png?ex=6a8ed035&is=6a8d7eb5&hm=a2daec647788ffd47a37a654a574b16c95087d0104636710563b0d352a2f06b0&"
 ).trim();
 
 const LOADING_EMOJI = "<a:Loading:1537866256022118421>";
@@ -75,12 +74,7 @@ function separator() {
 }
 
 function buildMainPanel() {
-  const panel = new ContainerBuilder()
-    .addMediaGalleryComponents(
-      new MediaGalleryBuilder().addItems(
-        new MediaGalleryItemBuilder().setURL(BANNER_URL)
-      )
-    )
+  const container = new ContainerBuilder()
     .addTextDisplayComponents(
       text("## **FLUXWAVE BYPASS LINK**")
     )
@@ -91,6 +85,11 @@ function buildMainPanel() {
       )
     )
     .addSeparatorComponents(separator())
+    .addMediaGalleryComponents(
+      new MediaGalleryBuilder().addItems(
+        new MediaGalleryItemBuilder().setURL(BANNER_URL)
+      )
+    )
     .addTextDisplayComponents(
       text("-# Made by FluxWave")
     )
@@ -99,22 +98,19 @@ function buildMainPanel() {
         new ButtonBuilder()
           .setStyle(ButtonStyle.Success)
           .setEmoji({
-            id: "1541753997445300325",
             name: "Linkv2",
+            id: "1541753997445300325",
           })
           .setLabel("Bypass")
           .setCustomId("fluxwave:bypass"),
-
         new ButtonBuilder()
           .setStyle(ButtonStyle.Secondary)
           .setLabel("Support info")
           .setCustomId("fluxwave:support"),
-
         new ButtonBuilder()
           .setStyle(ButtonStyle.Link)
           .setLabel("Invite Bot")
           .setURL(INVITE_BOT_URL),
-
         new ButtonBuilder()
           .setStyle(ButtonStyle.Link)
           .setLabel("Support Server")
@@ -122,7 +118,7 @@ function buildMainPanel() {
       )
     );
 
-  return panel;
+  return container;
 }
 
 function supportInfoComponents() {
@@ -151,28 +147,25 @@ function supportInfoComponents() {
 }
 
 function bypassModal() {
-  const input = new TextInputBuilder()
-    .setCustomId("url")
-    .setStyle(TextInputStyle.Short)
-    .setPlaceholder("https://...")
-    .setRequired(true)
-    .setMaxLength(2000);
-
-  const label = new LabelBuilder()
-    .setLabel("URL Bypass")
-    .setTextInputComponent(input);
-
   return new ModalBuilder()
     .setCustomId("fluxwave:bypass-modal")
-    .setTitle("Bypass systems")
-    .addLabelComponents(label);
+    .setTitle("FluxWave Bypass")
+    .addLabelComponents(
+      new TextInputBuilder()
+        .setCustomId("url")
+        .setLabel("URL Bypass")
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder("Paste your link here...")
+        .setRequired(true)
+        .setMaxLength(2000)
+    );
 }
 
 function buildSuccess(result, seconds, user, id) {
   const value = cleanResult(result);
 
   const mobile = value
-    .replace(/```/g, "")
+    .replace(/``/g, "")
     .replace(/`/g, "")
     .slice(0, 1000);
 
@@ -221,12 +214,10 @@ function buildSuccess(result, seconds, user, id) {
           .setStyle(ButtonStyle.Secondary)
           .setLabel("View Result")
           .setCustomId("view_result:" + id),
-
         new ButtonBuilder()
           .setStyle(ButtonStyle.Link)
           .setLabel("Invite Bot")
           .setURL(INVITE_BOT_URL),
-
         new ButtonBuilder()
           .setStyle(ButtonStyle.Link)
           .setLabel("Support Server")
@@ -238,7 +229,7 @@ function buildSuccess(result, seconds, user, id) {
 function errorComponents(result) {
   return new ContainerBuilder()
     .addTextDisplayComponents(
-      text("## **Bypass Failed**")
+      text("## Bypass Failed")
     )
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(
@@ -266,28 +257,38 @@ function v2Options(container, ephemeral = false) {
   };
 }
 
-async function processBypass({ url, user, reply }) {
+async function editV2(interaction, container, ephemeral = false) {
+  await interaction.editReply({
+    components: [container],
+    flags:
+      MessageFlags.IsComponentsV2 |
+      (ephemeral ? MessageFlags.Ephemeral : 0),
+  });
+}
+
+async function processBypass({
+  url,
+  user,
+  interaction,
+  ephemeral = false,
+}) {
   const detected = detect(url);
 
   if (!detected.url) {
-    await reply.edit({
-      components: [
-        errorComponents("Invalid URL."),
-      ],
-    });
-
+    await editV2(
+      interaction,
+      errorComponents("Invalid URL."),
+      ephemeral
+    );
     return false;
   }
 
   if (!detected.service) {
-    await reply.edit({
-      components: [
-        errorComponents(
-          "This link could not be processed."
-        ),
-      ],
-    });
-
+    await editV2(
+      interaction,
+      errorComponents("This link could not be processed."),
+      ephemeral
+    );
     return false;
   }
 
@@ -306,23 +307,21 @@ async function processBypass({ url, user, reply }) {
     ).toFixed(3);
 
     if (!outcome.success) {
-      await reply.edit({
-        components: [
-          errorComponents(
-            outcome.result || "Bypass failed."
-          ),
-        ],
-      });
-
+      await editV2(
+        interaction,
+        errorComponents(
+          outcome.result || "Bypass failed."
+        ),
+        ephemeral
+      );
       return false;
     }
 
     const result = cleanResult(outcome.result);
 
     const id =
-      `${user.id}:` +
-      `${Date.now()}:` +
-      `${Math.random().toString(36).slice(2, 8)}`;
+      `${user.id}:${Date.now()}:` +
+      Math.random().toString(36).slice(2, 8);
 
     results.set(id, {
       userId: user.id,
@@ -335,27 +334,27 @@ async function processBypass({ url, user, reply }) {
       );
     }
 
-    await reply.edit({
-      components: [
-        buildSuccess(
-          result,
-          seconds,
-          user,
-          id
-        ),
-      ],
-    });
+    await editV2(
+      interaction,
+      buildSuccess(
+        result,
+        seconds,
+        user,
+        id
+      ),
+      ephemeral
+    );
 
     return true;
   } catch (error) {
-    await reply.edit({
-      components: [
-        errorComponents(
-          error?.message ||
-            "Bypass failed."
-        ),
-      ],
-    });
+    await editV2(
+      interaction,
+      errorComponents(
+        error?.message ||
+          "Bypass failed."
+      ),
+      ephemeral
+    );
 
     return false;
   }
@@ -394,7 +393,7 @@ client.once("clientReady", async () => {
     await registerSlashCommands();
   } catch (error) {
     console.error(
-      "Failed to register slash commands:",
+      "Command registration error:",
       error
     );
   }
@@ -427,8 +426,7 @@ client.on(
         ) {
           if (
             !interaction.memberPermissions?.has(
-              PermissionsBitField.Flags
-                .Administrator
+              PermissionsBitField.Flags.Administrator
             )
           ) {
             await interaction.reply({
@@ -459,17 +457,16 @@ client.on(
 
           await interaction.deferReply();
 
-          const message =
-            await interaction.editReply(
-              v2Options(
-                loadingComponents()
-              )
-            );
+          await interaction.editReply(
+            v2Options(
+              loadingComponents()
+            )
+          );
 
           await processBypass({
             url,
             user: interaction.user,
-            reply: message,
+            interaction,
           });
 
           return;
@@ -567,17 +564,20 @@ client.on(
             MessageFlags.Ephemeral,
         });
 
-        const loading =
-          await interaction.editReply({
-            components: [
-              loadingComponents(),
-            ],
-          });
+        await interaction.editReply({
+          components: [
+            loadingComponents(),
+          ],
+          flags:
+            MessageFlags.IsComponentsV2 |
+            MessageFlags.Ephemeral,
+        });
 
         await processBypass({
           url,
           user: interaction.user,
-          reply: loading,
+          interaction,
+          ephemeral: true,
         });
 
         return;
@@ -588,19 +588,37 @@ client.on(
         error
       );
 
-      if (
-        interaction.isRepliable() &&
-        !interaction.replied &&
-        !interaction.deferred
-      ) {
-        await interaction.reply({
-          content:
-            "Something went wrong while processing your request.",
-          ephemeral: true,
-        }).catch(() => {});
-      }
+      try {
+        if (
+          interaction.deferred ||
+          interaction.replied
+        ) {
+          await interaction.editReply({
+            components: [
+              errorComponents(
+                "Something went wrong while processing the request."
+              ),
+            ],
+            flags:
+              MessageFlags.IsComponentsV2 |
+              (interaction.isModalSubmit()
+                ? MessageFlags.Ephemeral
+                : 0),
+          });
+        } else {
+          await interaction.reply({
+            content:
+              "Something went wrong while processing the request.",
+            ephemeral: true,
+          });
+        }
+      } catch {}
     }
   }
 );
+
+client.on("error", (error) => {
+  console.error("Client error:", error);
+});
 
 client.login(TOKEN);
