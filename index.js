@@ -191,25 +191,25 @@ function buildSuccess(result, seconds, user, id) {
   return new ContainerBuilder()
     .setAccentColor(5763719)
     .addTextDisplayComponents(
-      text(`${CHECK_EMOJI}  **Bypass Success** • @user`)
+      text(CHECK_EMOJI + "  **Bypass Success** • @user")
     )
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(
-      text(`${MOBILE_EMOJI} **Mobile Copy**\\n\\`\\`${mobile}\\`\\``)
+      text(MOBILE_EMOJI + " **Mobile Copy**\n```" + mobile + "```")
     )
     .addTextDisplayComponents(
-      text(`${COMPUTER_EMOJI} **PC Copy**\\n\\`\\`\\`\\n${pc}\\n\\`\\`\\``)
+      text(COMPUTER_EMOJI + " **PC Copy**\n```\n" + pc + "\n```")
     )
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(
-      text(`-# Processed in ${seconds}s • Requested by ${user.username}`)
+      text("-# Processed in " + seconds + "s • Requested by " + user.username)
     )
     .addActionRowComponents(
       new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setStyle(ButtonStyle.Secondary)
           .setLabel("View Result")
-          .setCustomId(`view_result:${id}`)
+          .setCustomId("view_result:" + id)
       )
     );
 }
