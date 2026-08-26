@@ -1,5 +1,5 @@
 const BASE = (process.env.BYPASS_API_URL || "https://api.bananaone.dpdns.org").replace(/\/+$/, "");
-const TIMEOUT = Number(process.env.BYPASS_API_TIMEOUT || 300000);
+const TIMEOUT = Number(process.env.BYPASS_API_TIMEOUT || 20000);
 const WARMUP_TIMEOUT = Number(process.env.BYPASS_API_WARMUP_TIMEOUT || 10000);
 
 const PLATFORMS = [
@@ -80,8 +80,6 @@ function normalise(res) {
     };
   }
 
-  // Backend returns:
-  // { status: "success", request: "...", result: "...", elapsed: "...", madeby: "Banana One" }
   if (String(data.status || "").toLowerCase() === "success") {
     const value = data.result || data.url || data.key || "";
     return {
@@ -93,7 +91,6 @@ function normalise(res) {
     };
   }
 
-  // Keep compatibility with the previous backend response format.
   if (data.success) {
     const value = data.key || data.url || data.result || "";
     return {
@@ -113,6 +110,7 @@ function normalise(res) {
     tookMs: data.elapsed || data.tookMs,
   };
 }
+
 async function bypassWithApis(url, onStep = () => {}) {
   const platform = platformFor(url);
   if (!platform) {
@@ -123,7 +121,6 @@ async function bypassWithApis(url, onStep = () => {}) {
   onStep("Sending the link to Banana One...");
 
   try {
-    // FluxWave backend: GET /api?url=<your_link>
     const res = await request(`/api?url=${encodeURIComponent(url)}`, { method: "GET" });
     const result = normalise(res);
 
@@ -131,7 +128,6 @@ async function bypassWithApis(url, onStep = () => {}) {
       return { ...result, provider: "Banana One" };
     }
 
-    // Fallback to the documented POST form: POST /api with {"url":"..."}
     const post = await request(`/api`, { method: "POST", body: { url } });
     const postResult = normalise(post);
 
@@ -152,6 +148,7 @@ async function bypassWithApis(url, onStep = () => {}) {
     };
   }
 }
+
 async function madiumKey(steps) {
   try {
     return normalise(await request("/api/madium/key", { method: "POST", body: { steps } }));
@@ -180,6 +177,7 @@ const HEALTH_CHECKS = [
     }),
   },
 ];
+
 async function probeOne(check) {
   const started = Date.now();
   try {
