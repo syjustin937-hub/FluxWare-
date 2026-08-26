@@ -337,7 +337,7 @@ async function processBypass({
         detected.url.href,
         () => {}
       ),
-      20000
+      45000
     );
 
     const seconds = (
