@@ -67,7 +67,7 @@ function withTimeout(promise, ms) {
   ]);
 }
 
-function text(content)
+function text(content) {
   return new TextDisplayBuilder().setContent(content);
 }
 
@@ -103,8 +103,6 @@ function buildMainPanel() {
     );
     container.addSeparatorComponents(separator());
   }
-
-  container.addTextDisplayComponents(text(`-# Made by ${BRAND}`));
 
   container.addActionRowComponents(
     new ActionRowBuilder().addComponents(
@@ -167,14 +165,14 @@ function bypassModal() {
 function buildSuccess(result, seconds, user, id) {
   const value = cleanResult(result);
 
-  const mobile = value.replace(/``/g, "").replace(/`/g, "").slice(0, 1000);
+  const mobile = value.replace(/``/g, "").replace(/`/g, "").replace(/\n/g, " ").slice(0, 1000);
   const pc = value.replace(/```/g, "").replace(/`/g, "").slice(0, 3900);
 
   return new ContainerBuilder()
     .setAccentColor(5763719)
     .addTextDisplayComponents(text(`${CHECK_EMOJI}  **Bypass Success**`))
     .addSeparatorComponents(separator())
-    .addTextDisplayComponents(text(`${MOBILE_EMOJI} **Mobile Copy**\n\`\`\n${mobile}\n\`\`\``))
+    .addTextDisplayComponents(text(`${MOBILE_EMOJI} **Mobile Copy**\n\`${mobile}\``))
     .addTextDisplayComponents(text(`${COMPUTER_EMOJI} **PC Copy**\n\`\`\`\n${pc}\n\`\`\``))
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(text(`-# Processed in ${seconds}s`))
