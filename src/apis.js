@@ -38,7 +38,7 @@ function isSupportedRemotely(url) {
   return !!platformFor(url);
 }
 
-const PROVIDERS = [{ id: "private-backend", name: "Private Bypass API", base: BASE }];
+const PROVIDERS = [{ id: "private-backend", name: "Zentra Bypass API", base: BASE }];
 
 function providersFor(url) {
   return isSupportedRemotely(url) ? PROVIDERS : [];
@@ -53,7 +53,7 @@ async function request(path, { method = "GET", body, timeout = TIMEOUT } = {}) {
       headers: {
         accept: "application/json",
         ...(body ? { "content-type": "application/json" } : {}),
-        "user-agent": "BypassBot/4.1",
+        "user-agent": "ZentraBot/4.1",
       },
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
@@ -74,10 +74,7 @@ function normalise(res) {
   const data = res.json;
 
   if (!data || typeof data !== "object") {
-    return {
-      success: false,
-      result: res.text ? String(res.text).slice(0, 500) : `HTTP ${res.status}`,
-    };
+    return { success: false, result: res.text ? String(res.text).slice(0, 500) : `HTTP ${res.status}` };
   }
 
   if (String(data.status || "").toLowerCase() === "success") {
@@ -118,34 +115,26 @@ async function bypassWithApis(url, onStep = () => {}) {
   }
 
   onStep(`Platform: ${platform.name}`);
-  onStep("Sending the link to Banana One...");
+  onStep("Sending the link to Zentra...");
 
   try {
     const res = await request(`/api?url=${encodeURIComponent(url)}`, { method: "GET" });
     const result = normalise(res);
 
     if (result.success) {
-      return { ...result, provider: "Banana One" };
+      return { ...result, provider: "Zentra" };
     }
 
     const post = await request(`/api`, { method: "POST", body: { url } });
     const postResult = normalise(post);
 
     if (postResult.success) {
-      return { ...postResult, provider: "Banana One" };
+      return { ...postResult, provider: "Zentra" };
     }
 
-    return {
-      success: false,
-      result: [result.result, postResult.result].filter(Boolean).join("\n"),
-      provider: null,
-    };
+    return { success: false, result: [result.result, postResult.result].filter(Boolean).join("\n"), provider: null };
   } catch (err) {
-    return {
-      success: false,
-      result: err.name === "AbortError" ? "timeout" : err.message || "network error",
-      provider: null,
-    };
+    return { success: false, result: err.name === "AbortError" ? "timeout" : err.message || "network error", provider: null };
   }
 }
 
@@ -168,13 +157,10 @@ async function apiStatus() {
 
 const HEALTH_CHECKS = [
   {
-    id: "bananaone-api",
-    name: "FluxWave (/api)",
+    id: "zentra-api",
+    name: "Zentra (/api)",
     kind: "api",
-    run: () => request(`/api?url=${encodeURIComponent("https://link-to.net/xxx")}`, {
-      method: "GET",
-      timeout: 15000,
-    }),
+    run: () => request(`/api?url=${encodeURIComponent("https://link-to.net/xxx")}`, { method: "GET", timeout: 15000 }),
   },
 ];
 
