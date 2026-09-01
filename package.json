@@ -1,7 +1,7 @@
 {
-  "name": "bypass-bot",
+  "name": "zentra-bypass-bot",
   "version": "4.0.0",
-  "description": "Discord bypass bot",
+  "description": "Zentra Discord bypass bot",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
