@@ -88,11 +88,11 @@ async function editV2(interaction, container) {
 
 function buildMainPanel() {
   const container = new ContainerBuilder()
-    .addTextDisplayComponents(text(`## **${BRAND.toUpperCase()} BYPASS LINK**`))
+    .addTextDisplayComponents(text(`## **${BRAND.toUpperCase()} BYPASS KEY**`))
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(
       text(
-        "**Click** Bypass, **paste your link in the** url bypass **field, then press** Submit.\n\n-# Enter your link and submit it to continue.\n-# Please wait a moment while your request is being processed.\n-# Your result will appear once the process is complete."
+        "> **1** Click **Bypass**\n> **2** Paste your **link in the** url bypass **field.**\n> **3** Then **press Submit.**\n>\n> -# **Enter your link carefully and wait while your request is being processed.**\n> -# **Your result will appear once the bypass is complete.**"
       )
     )
     .addSeparatorComponents(separator());
