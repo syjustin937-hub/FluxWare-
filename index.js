@@ -67,7 +67,7 @@ function withTimeout(promise, ms) {
   ]);
 }
 
-function text(content) {
+function text(content)
   return new TextDisplayBuilder().setContent(content);
 }
 
@@ -174,7 +174,7 @@ function buildSuccess(result, seconds, user, id) {
     .setAccentColor(5763719)
     .addTextDisplayComponents(text(`${CHECK_EMOJI}  **Bypass Success**`))
     .addSeparatorComponents(separator())
-    .addTextDisplayComponents(text(`${MOBILE_EMOJI} **Mobile Copy**\n\`\`\`\n${mobile}\n\`\`\``))
+    .addTextDisplayComponents(text(`${MOBILE_EMOJI} **Mobile Copy**\n\`\`\n${mobile}\n\`\`\``))
     .addTextDisplayComponents(text(`${COMPUTER_EMOJI} **PC Copy**\n\`\`\`\n${pc}\n\`\`\``))
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(text(`-# Processed in ${seconds}s`))
