@@ -24,6 +24,7 @@ const {
 const { detect } = require("./src/services");
 const { runBypass } = require("./src/backend");
 const { warmup, PLATFORMS } = require("./src/apis");
+const { getLogChannelId, setLogChannelId } = require("./src/logs");
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const BRAND = process.env.BOT_NAME || "Zentra";
@@ -86,13 +87,20 @@ async function editV2(interaction, container) {
   await interaction.editReply(v2Options(container));
 }
 
+function messageV2(title, body) {
+  return new ContainerBuilder()
+    .addTextDisplayComponents(text(`## **${title}**`))
+    .addSeparatorComponents(separator())
+    .addTextDisplayComponents(text(body));
+}
+
 function buildMainPanel() {
   const container = new ContainerBuilder()
     .addTextDisplayComponents(text(`## **${BRAND.toUpperCase()} BYPASS KEY**`))
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(
       text(
-        "> **1** Click **Bypass**\n> **2** Paste your **link in the** url bypass **field.**\n> **3** Then **press Submit.**\n>\n> -# **Enter your link carefully and wait while your request is being processed.**\n> -# **Your result will appear once the bypass is complete.**"
+        "**1** Click **Bypass**\n**2** Paste your **link in the** url bypass **field.**\n**3** Then **press Submit.**\n\n-# **Enter your link carefully and wait while your request is being processed.**\n-# **Your result will appear once the bypass is complete.**"
       )
     )
     .addSeparatorComponents(separator());
@@ -199,15 +207,47 @@ function loadingComponents() {
     .addTextDisplayComponents(text("-# Processing the submitted URL..."));
 }
 
-async function processBypass({ url, user, interaction }) {
+async function sendBypassLog(interaction, { user, service, status, seconds, source }) {
+  try {
+    const channelId = getLogChannelId(interaction.guildId);
+
+    if (!channelId || !interaction.guild) {
+      return;
+    }
+
+    const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
+
+    if (!channel?.isTextBased()) {
+      return;
+    }
+
+    const container = new ContainerBuilder()
+      .setAccentColor(status === "Success" ? 5763719 : 15548997)
+      .addTextDisplayComponents(text(`## Bypass Log`))
+      .addSeparatorComponents(separator())
+      .addTextDisplayComponents(
+        text(
+          `**User:** <@${user.id}>\n**User ID:** \`${user.id}\`\n**Service:** ${service || "Unknown"}\n**Method:** ${source}\n**Status:** ${status}\n**Time:** <t:${Math.floor(Date.now() / 1000)}:F>\n**Duration:** ${seconds ? `${seconds}s` : "N/A"}`
+        )
+      );
+
+    await channel.send(v2Options(container));
+  } catch (error) {
+    console.error("Bypass log error:", error);
+  }
+}
+
+async function processBypass({ url, user, interaction, source }) {
   const detected = detect(url);
 
   if (!detected.url) {
+    await sendBypassLog(interaction, { user, service: "Unknown", status: "Invalid URL", source });
     await editV2(interaction, errorComponents("Invalid URL."));
     return false;
   }
 
   if (!detected.service) {
+    await sendBypassLog(interaction, { user, service: "Unknown", status: "Unsupported", source });
     await editV2(interaction, errorComponents("This link could not be processed."));
     return false;
   }
@@ -219,6 +259,7 @@ async function processBypass({ url, user, interaction }) {
     const seconds = ((Date.now() - started) / 1000).toFixed(3);
 
     if (!outcome.success) {
+      await sendBypassLog(interaction, { user, service: detected.service.name || detected.service, status: "Failed", seconds, source });
       await editV2(interaction, errorComponents(outcome.result || "Bypass failed."));
       return false;
     }
@@ -232,10 +273,13 @@ async function processBypass({ url, user, interaction }) {
       results.delete(results.keys().next().value);
     }
 
+    await sendBypassLog(interaction, { user, service: detected.service.name || detected.service, status: "Success", seconds, source });
     await editV2(interaction, buildSuccess(result, seconds, user, id));
     return true;
   } catch (error) {
+    const seconds = ((Date.now() - started) / 1000).toFixed(3);
     console.error("Bypass processing error:", error);
+    await sendBypassLog(interaction, { user, service: detected.service.name || detected.service, status: "Error", seconds, source });
     await editV2(interaction, errorComponents(error?.message || "Bypass failed."));
     return false;
   }
@@ -252,7 +296,24 @@ async function registerSlashCommands() {
     .setDescription(`Post the ${BRAND} Bypass panel`)
     .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator);
 
-  await client.application.commands.set([bypassCommand, panelCommand]);
+  const logsCommand = new SlashCommandBuilder()
+    .setName("logs")
+    .setDescription("Configure bypass logs")
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName("setup")
+        .setDescription("Set the channel where bypass logs will be sent")
+        .addChannelOption((option) =>
+          option
+            .setName("channel")
+            .setDescription("Channel for bypass logs")
+            .setRequired(true)
+            .addChannelTypes(0)
+        )
+    );
+
+  await client.application.commands.set([bypassCommand, panelCommand, logsCommand]);
 }
 
 client.once("clientReady", async () => {
@@ -277,10 +338,7 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "zentrabypass") {
         if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
-          await interaction.reply({
-            content: "You need Administrator permission to use this command.",
-            flags: MessageFlags.Ephemeral,
-          });
+          await interaction.reply(v2Options(messageV2("Permission Denied", "You need **Administrator** permission to use this command."), true));
           return;
         }
 
@@ -293,7 +351,29 @@ client.on("interactionCreate", async (interaction) => {
 
         await interaction.deferReply();
         await interaction.editReply(v2Options(loadingComponents()));
-        await processBypass({ url, user: interaction.user, interaction });
+        await processBypass({ url, user: interaction.user, interaction, source: "Slash Command" });
+        return;
+      }
+
+      if (interaction.commandName === "logs") {
+        if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
+          await interaction.reply(v2Options(messageV2("Permission Denied", "You need **Administrator** permission to use this command."), true));
+          return;
+        }
+
+        if (interaction.options.getSubcommand() === "setup") {
+          const channel = interaction.options.getChannel("channel", true);
+
+          if (!channel.isTextBased()) {
+            await interaction.reply(v2Options(messageV2("Invalid Channel", "Please select a **text channel** for bypass logs."), true));
+            return;
+          }
+
+          setLogChannelId(interaction.guildId, channel.id);
+
+          await interaction.reply(v2Options(messageV2("Logs Configured", `Bypass logs are now set to ${channel}.`), true));
+        }
+
         return;
       }
 
@@ -303,20 +383,12 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.isButton()) {
       if (interaction.customId === "zentra:post-panel") {
         if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
-          await interaction.reply({
-            content: "You need Administrator permission to post the panel.",
-            flags: MessageFlags.Ephemeral,
-          });
+          await interaction.reply(v2Options(messageV2("Permission Denied", "You need **Administrator** permission to post the panel."), true));
           return;
         }
 
         await interaction.channel.send(v2Options(buildMainPanel()));
-        await interaction.update({
-          content: "Panel posted successfully.",
-          components: [],
-          embeds: [],
-          flags: MessageFlags.Ephemeral,
-        });
+        await interaction.update(v2Options(messageV2("Panel Posted", "The **Bypass Key** panel was posted successfully.")));
         return;
       }
 
@@ -335,19 +407,16 @@ client.on("interactionCreate", async (interaction) => {
         const data = results.get(id);
 
         if (!data) {
-          await interaction.reply({ content: "This result is no longer available.", flags: MessageFlags.Ephemeral });
+          await interaction.reply(v2Options(messageV2("Result Unavailable", "This result is no longer available."), true));
           return;
         }
 
         if (interaction.user.id !== data.userId) {
-          await interaction.reply({
-            content: "Only the user who requested this bypass can view the result.",
-            flags: MessageFlags.Ephemeral,
-          });
+          await interaction.reply(v2Options(messageV2("Access Denied", "Only the user who requested this bypass can view the result."), true));
           return;
         }
 
-        await interaction.reply({ content: data.result.slice(0, 2000), flags: MessageFlags.Ephemeral });
+        await interaction.reply(v2Options(messageV2("Bypass Result", `\`\`\`\n${data.result.slice(0, 3900)}\n\`\`\``), true));
         return;
       }
 
@@ -359,7 +428,7 @@ client.on("interactionCreate", async (interaction) => {
 
       await interaction.deferReply({ flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
       await interaction.editReply(v2Options(loadingComponents()));
-      await processBypass({ url, user: interaction.user, interaction });
+      await processBypass({ url, user: interaction.user, interaction, source: "Components V2" });
       return;
     }
   } catch (error) {
@@ -369,10 +438,7 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.deferred || interaction.replied) {
         await interaction.editReply(v2Options(errorComponents("Something went wrong while processing the request.")));
       } else {
-        await interaction.reply({
-          content: "Something went wrong while processing the request.",
-          flags: MessageFlags.Ephemeral,
-        });
+        await interaction.reply(v2Options(messageV2("Error", "Something went wrong while processing the request."), true));
       }
     } catch {}
   }
