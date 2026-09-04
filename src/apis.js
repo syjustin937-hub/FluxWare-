@@ -1,16 +1,53 @@
-const BASE = (process.env.BYPASS_API_URL || "https://api.bananaone.dpdns.org").replace(/\/+$/, "");
-const TIMEOUT = Number(process.env.BYPASS_API_TIMEOUT || 20000);
+const BASE = (process.env.BYPASS_API_URL || "https://kys.arashi-x.xyz/api/free/bypass").replace(/\/+$/, "");
+const TIMEOUT = Number(process.env.BYPASS_API_TIMEOUT || 30000);
 const WARMUP_TIMEOUT = Number(process.env.BYPASS_API_WARMUP_TIMEOUT || 10000);
 
-const PLATFORMS = [
-  { id: "platoboost", name: "Platoboost / PlatoRelay", example: "https://auth.platorelay.com/?d=TICKET", domains: ["auth.platorelay.com", "platorelay.com", "auth.platoboost.com", "gateway.platoboost.com", "platoboost.com"] },
-  { id: "lootlabs", name: "LootLabs", example: "https://links.lootlabs.gg/XXXXX", domains: ["links.lootlabs.gg", "lootlabs.gg", "lootdest.com", "lootdest.org", "lootdest.info"] },
-  { id: "lootlink", name: "loot.link", example: "https://loot.link/XXXXX", domains: ["loot.link", "loot-link.com", "loot-links.com", "lootlink.org"] },
-  { id: "workink", name: "work.ink", example: "https://work.ink/XXXX/...", domains: ["work.ink", "workink.net"] },
-  { id: "boostink", name: "boost.ink", example: "https://boost.ink/XXXXX", domains: ["boost.ink", "mboost.me", "bst.gg"] },
-  { id: "linkvertise", name: "Linkvertise", example: "https://linkvertise.com/...", domains: ["linkvertise.com", "link-to.net", "link-target.net", "link-center.net", "link-hub.net", "direct-link.net"] },
-  { id: "madium", name: "Madium", example: "https://getmadium.xyz/", domains: ["getmadium.xyz", "auth.getmadium.xyz", "madium.xyz"] },
+const SUPPORTED_DOMAINS = [
+  "link4sub.com",
+  "linkunlocker.com",
+  "unlk.link",
+  "boostylink.com",
+  "cutty.io",
+  "cuttty.com",
+  "cuty.io",
+  "boost.ink",
+  "boostink.net",
+  "bstshrt.com",
+  "bstlar.com",
+  "mboost.me",
+  "ytsubme.com",
+  "socialwolvez.com",
+  "1nbz.la",
+  "rekonise.com",
+  "trigonevo.fun",
+  "linkzy.space",
+  "linkgate.gg",
+  "linkify.ru",
+  "link-unlock.com",
+  "adfoc.us",
+  "pastelua",
+  "violated.lol",
+  "airflowkey.space",
+  "bloxhub.click",
+  "neoxsoftworks.eu",
+  "relzhub.com",
+  "haxscripts",
+  "axon",
+  "weretools",
+  "rinku",
+  "tpi.li",
+  "pastebin.com",
+  "paste-drop.com",
+  "airflowscript.com",
+  "retrivednods",
 ];
+
+const PLATFORMS = SUPPORTED_DOMAINS.map((domain) => ({
+  id: domain.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase(),
+  name: domain,
+  example: `https://${domain}/`,
+  domains: [domain],
+}));
 
 function hostOf(url) {
   try {
@@ -25,7 +62,7 @@ function domainMatch(host, list) {
 }
 
 function allDomains() {
-  return [...new Set(PLATFORMS.flatMap((p) => p.domains))].sort();
+  return [...new Set(SUPPORTED_DOMAINS)].sort();
 }
 
 function platformFor(url) {
@@ -38,13 +75,13 @@ function isSupportedRemotely(url) {
   return !!platformFor(url);
 }
 
-const PROVIDERS = [{ id: "private-backend", name: "Zentra Bypass API", base: BASE }];
+const PROVIDERS = [{ id: "arashi-api", name: "Arashi Free Bypass API", base: BASE }];
 
 function providersFor(url) {
   return isSupportedRemotely(url) ? PROVIDERS : [];
 }
 
-async function request(path, { method = "GET", body, timeout = TIMEOUT } = {}) {
+async function request(path = "", { method = "GET", body, timeout = TIMEOUT } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
@@ -53,7 +90,7 @@ async function request(path, { method = "GET", body, timeout = TIMEOUT } = {}) {
       headers: {
         accept: "application/json",
         ...(body ? { "content-type": "application/json" } : {}),
-        "user-agent": "ZentraBot/4.1",
+        "user-agent": "FluxWareBot/1.0",
       },
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
@@ -74,11 +111,14 @@ function normalise(res) {
   const data = res.json;
 
   if (!data || typeof data !== "object") {
-    return { success: false, result: res.text ? String(res.text).slice(0, 500) : `HTTP ${res.status}` };
+    return {
+      success: false,
+      result: res.text ? String(res.text).slice(0, 1000) : `HTTP ${res.status}`,
+    };
   }
 
-  if (String(data.status || "").toLowerCase() === "success") {
-    const value = data.result || data.url || data.key || "";
+  if (data.success === true) {
+    const value = data.result || data.url || data.key || data.link || "";
     return {
       success: !!value,
       result: value || "backend returned no result",
@@ -88,14 +128,14 @@ function normalise(res) {
     };
   }
 
-  if (data.success) {
-    const value = data.key || data.url || data.result || "";
+  if (String(data.status || "").toLowerCase() === "success") {
+    const value = data.result || data.url || data.key || data.link || "";
     return {
       success: !!value,
-      result: value || "backend returned no key",
+      result: value || "backend returned no result",
       platform: data.platform || null,
       logs: Array.isArray(data.logs) ? data.logs : [],
-      tookMs: data.tookMs,
+      tookMs: data.elapsed || data.tookMs,
     };
   }
 
@@ -111,44 +151,33 @@ function normalise(res) {
 async function bypassWithApis(url, onStep = () => {}) {
   const platform = platformFor(url);
   if (!platform) {
-    return { success: false, result: "this domain is not supported by the backend", provider: null };
+    return { success: false, result: "This domain is not listed as supported by the API.", provider: null };
   }
 
   onStep(`Platform: ${platform.name}`);
-  onStep("Sending the link to Zentra...");
+  onStep("Sending the link to Arashi...");
 
   try {
-    const res = await request(`/api?url=${encodeURIComponent(url)}`, { method: "GET" });
+    const res = await request(`?url=${encodeURIComponent(url)}`, { method: "GET" });
     const result = normalise(res);
 
     if (result.success) {
-      return { ...result, provider: "Zentra" };
+      return { ...result, provider: "Arashi" };
     }
 
-    const post = await request(`/api`, { method: "POST", body: { url } });
-    const postResult = normalise(post);
-
-    if (postResult.success) {
-      return { ...postResult, provider: "Zentra" };
-    }
-
-    return { success: false, result: [result.result, postResult.result].filter(Boolean).join("\n"), provider: null };
+    return { success: false, result: result.result, provider: null };
   } catch (err) {
-    return { success: false, result: err.name === "AbortError" ? "timeout" : err.message || "network error", provider: null };
-  }
-}
-
-async function madiumKey(steps) {
-  try {
-    return normalise(await request("/api/madium/key", { method: "POST", body: { steps } }));
-  } catch (err) {
-    return { success: false, result: err.name === "AbortError" ? "timeout" : err.message };
+    return {
+      success: false,
+      result: err.name === "AbortError" ? "API request timed out." : err.message || "network error",
+      provider: null,
+    };
   }
 }
 
 async function apiStatus() {
   try {
-    const res = await request("/health", { method: "GET", timeout: 10000 });
+    const res = await request(`?url=${encodeURIComponent("https://link4sub.com/")}`, { method: "GET", timeout: 10000 });
     return res.status > 0 && res.status < 500;
   } catch {
     return false;
@@ -157,10 +186,10 @@ async function apiStatus() {
 
 const HEALTH_CHECKS = [
   {
-    id: "zentra-api",
-    name: "Zentra (/api)",
+    id: "arashi-api",
+    name: "Arashi Free Bypass API",
     kind: "api",
-    run: () => request(`/api?url=${encodeURIComponent("https://link-to.net/xxx")}`, { method: "GET", timeout: 15000 }),
+    run: () => request(`?url=${encodeURIComponent("https://link4sub.com/")}`, { method: "GET", timeout: 15000 }),
   },
 ];
 
@@ -171,9 +200,25 @@ async function probeOne(check) {
     const ms = Date.now() - started;
     const ok = res.status > 0 && res.status < 400;
     const degraded = !ok && [400, 401, 402, 403, 422, 429].includes(res.status);
-    return { id: check.id, name: check.name, kind: check.kind, ok, degraded, ms, detail: `HTTP ${res.status}${degraded ? " (limited)" : ""}` };
+    return {
+      id: check.id,
+      name: check.name,
+      kind: check.kind,
+      ok,
+      degraded,
+      ms,
+      detail: `HTTP ${res.status}${degraded ? " (limited)" : ""}`,
+    };
   } catch (err) {
-    return { id: check.id, name: check.name, kind: check.kind, ok: false, degraded: false, ms: Date.now() - started, detail: err.name === "AbortError" ? "timeout" : err.message || "network error" };
+    return {
+      id: check.id,
+      name: check.name,
+      kind: check.kind,
+      ok: false,
+      degraded: false,
+      ms: Date.now() - started,
+      detail: err.name === "AbortError" ? "timeout" : err.message || "network error",
+    };
   }
 }
 
@@ -183,7 +228,7 @@ async function testApis() {
 
 async function warmup() {
   try {
-    await request("/health", { method: "GET", timeout: WARMUP_TIMEOUT });
+    await request(`?url=${encodeURIComponent("https://link4sub.com/")}`, { method: "GET", timeout: WARMUP_TIMEOUT });
   } catch {}
 }
 
@@ -199,7 +244,6 @@ module.exports = {
   isSupportedRemotely,
   providersFor,
   bypassWithApis,
-  madiumKey,
   apiStatus,
   testApis,
   probeOne,
